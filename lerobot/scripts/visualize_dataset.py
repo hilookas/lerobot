@@ -157,15 +157,23 @@ def visualize_dataset(
                 # TODO(rcadene): add `.compress()`? is it lossless?
                 rr.log(key, rr.Image(to_hwc_uint8_numpy(batch[key][i])))
 
-            # display each dimension of action space (e.g. actuators command)
-            if "action" in batch:
-                for dim_idx, val in enumerate(batch["action"][i]):
-                    rr.log(f"action/{dim_idx}", rr.Scalar(val.item()))
-
+            keys = []
             # display each dimension of observed state space (e.g. agent position in joint space)
             if "observation.state" in batch:
-                for dim_idx, val in enumerate(batch["observation.state"][i]):
-                    rr.log(f"state/{dim_idx}", rr.Scalar(val.item()))
+                keys += ["observation.state"]
+            keys += [key for key in batch if "observation.state." in key]
+            if "observation.velocity" in batch:
+                keys += ["observation.velocity"]
+            if "observation.effort" in batch:
+                keys += ["observation.effort"]
+            # display each dimension of action space (e.g. actuators command)
+            if "action" in batch:
+                keys += ["action"]
+            keys += [key for key in batch if "action." in key]
+
+            for key in keys:
+                for dim_idx, val in enumerate(batch[key][i]):
+                    rr.log(f"{key}/{dim_idx}", rr.Scalar(val.item()))
 
             if "next.done" in batch:
                 rr.log("next.done", rr.Scalar(batch["next.done"][i].item()))

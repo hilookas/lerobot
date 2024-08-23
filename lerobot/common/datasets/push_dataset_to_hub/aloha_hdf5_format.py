@@ -180,20 +180,22 @@ def to_hf_dataset(data_dict, video) -> Dataset:
         else:
             features[key] = Image()
 
-    features["observation.state"] = Sequence(
-        length=data_dict["observation.state"].shape[1], feature=Value(dtype="float32", id=None)
-    )
+    keys = []
+    if "observation.state" in data_dict:
+        keys += ["observation.state"]
+    keys += [key for key in data_dict if "observation.state." in key]
     if "observation.velocity" in data_dict:
-        features["observation.velocity"] = Sequence(
-            length=data_dict["observation.velocity"].shape[1], feature=Value(dtype="float32", id=None)
-        )
+        keys += ["observation.velocity"]
     if "observation.effort" in data_dict:
-        features["observation.effort"] = Sequence(
-            length=data_dict["observation.effort"].shape[1], feature=Value(dtype="float32", id=None)
+        keys += ["observation.effort"]
+    if "action" in data_dict:
+        keys += ["action"]
+    keys += [key for key in data_dict if "action." in key]
+
+    for key in keys:
+        features[key] = Sequence(
+            length=data_dict[key].shape[1], feature=Value(dtype="float32", id=None)
         )
-    features["action"] = Sequence(
-        length=data_dict["action"].shape[1], feature=Value(dtype="float32", id=None)
-    )
     features["episode_index"] = Value(dtype="int64", id=None)
     features["frame_index"] = Value(dtype="int64", id=None)
     features["timestamp"] = Value(dtype="float32", id=None)

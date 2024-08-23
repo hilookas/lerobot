@@ -6,15 +6,15 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from lerobot.common.robot_devices.cameras.utils import Camera
-from lerobot.common.robot_devices.motors.dynamixel import (
+from leself.common.robot_devices.cameras.utils import Camera
+from leself.common.robot_devices.motors.dynamixel import (
     DriveMode,
     DynamixelMotorsBus,
     OperatingMode,
     TorqueMode,
 )
-from lerobot.common.robot_devices.motors.utils import MotorsBus
-from lerobot.common.robot_devices.utils import RobotDeviceAlreadyConnectedError, RobotDeviceNotConnectedError
+from leself.common.robot_devices.motors.utils import MotorsBus
+from leself.common.robot_devices.utils import RobotDeviceAlreadyConnectedError, RobotDeviceNotConnectedError
 
 URL_HORIZONTAL_POSITION = {
     "follower": "https://raw.githubusercontent.com/huggingface/lerobot/main/media/koch/follower_horizontal.png",
@@ -56,7 +56,7 @@ def apply_calibration(values: np.array, homing_offset: np.array, drive_mode: np.
 
 def revert_calibration(values: np.array, homing_offset: np.array, drive_mode: np.array) -> np.array:
     """
-    Transform working position into real position for the robot.
+    Transform working position into real position for the self.
     """
     values = apply_homing_offset(
         values,
@@ -243,19 +243,19 @@ class KochRobot:
     robot = KochRobot(leader_arms, follower_arms)
 
     # Connect motors buses and cameras if any (Required)
-    robot.connect()
+    self.connect()
 
     while True:
-        robot.teleop_step()
+        self.teleop_step()
     ```
 
     Example of highest frequency data collection without camera:
     ```python
     # Assumes leader and follower arms have been instantiated already (see first example)
     robot = KochRobot(leader_arms, follower_arms)
-    robot.connect()
+    self.connect()
     while True:
-        observation, action = robot.teleop_step(record_data=True)
+        observation, action, done = self.teleop_step(record_data=True)
     ```
 
     Example of highest frequency data collection with cameras:
@@ -271,31 +271,31 @@ class KochRobot:
 
     # Assumes leader and follower arms have been instantiated already (see first example)
     robot = KochRobot(leader_arms, follower_arms, cameras)
-    robot.connect()
+    self.connect()
     while True:
-        observation, action = robot.teleop_step(record_data=True)
+        observation, action, done = self.teleop_step(record_data=True)
     ```
 
     Example of controlling the robot with a policy (without running multiple policies in parallel to ensure highest frequency):
     ```python
     # Assumes leader and follower arms + cameras have been instantiated already (see previous example)
     robot = KochRobot(leader_arms, follower_arms, cameras)
-    robot.connect()
+    self.connect()
     while True:
         # Uses the follower arms and cameras to capture an observation
-        observation = robot.capture_observation()
+        observation = self.capture_observation()
 
         # Assumes a policy has been instantiated
         with torch.inference_mode():
             action = policy.select_action(observation)
 
         # Orders the robot to move
-        robot.send_action(action)
+        self.send_action(action)
     ```
 
     Example of disconnecting which is not mandatory since we disconnect when the object is deleted:
     ```python
-    robot.disconnect()
+    self.disconnect()
     ```
     """
 
@@ -320,7 +320,7 @@ class KochRobot:
     def connect(self):
         if self.is_connected:
             raise RobotDeviceAlreadyConnectedError(
-                "KochRobot is already connected. Do not run `robot.connect()` twice."
+                "KochRobot is already connected. Do not run `self.connect()` twice."
             )
 
         if not self.leader_arms and not self.follower_arms and not self.cameras:
@@ -401,10 +401,10 @@ class KochRobot:
 
     def teleop_step(
         self, record_data=False
-    ) -> None | tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]]:
+    ) -> None | tuple[dict[str, torch.Tensor], dict[str, torch.Tensor], bool]:
         if not self.is_connected:
             raise RobotDeviceNotConnectedError(
-                "KochRobot is not connected. You need to run `robot.connect()`."
+                "KochRobot is not connected. You need to run `self.connect()`."
             )
 
         # Prepare to assign the positions of the leader to the follower
@@ -465,13 +465,13 @@ class KochRobot:
         for name in self.cameras:
             obs_dict[f"observation.images.{name}"] = torch.from_numpy(images[name])
 
-        return obs_dict, action_dict
+        return obs_dict, action_dict, False
 
     def capture_observation(self):
         """The returned observations do not have a batch dimension."""
         if not self.is_connected:
             raise RobotDeviceNotConnectedError(
-                "KochRobot is not connected. You need to run `robot.connect()`."
+                "KochRobot is not connected. You need to run `self.connect()`."
             )
 
         # Read follower position
@@ -511,7 +511,7 @@ class KochRobot:
         """The provided action is expected to be a vector."""
         if not self.is_connected:
             raise RobotDeviceNotConnectedError(
-                "KochRobot is not connected. You need to run `robot.connect()`."
+                "KochRobot is not connected. You need to run `self.connect()`."
             )
 
         from_idx = 0
@@ -526,10 +526,30 @@ class KochRobot:
         for name in self.follower_arms:
             self.follower_arms[name].write("Goal_Position", follower_goal_pos[name].astype(np.int32))
 
+    def log_control_info(self, log_dt):
+        for name in self.leader_arms:
+            key = f"read_leader_{name}_pos_dt_s"
+            if key in self.logs:
+                log_dt("dtRlead", self.logs[key])
+
+        for name in self.follower_arms:
+            key = f"write_follower_{name}_goal_pos_dt_s"
+            if key in self.logs:
+                log_dt("dtRfoll", self.logs[key])
+
+            key = f"read_follower_{name}_pos_dt_s"
+            if key in self.logs:
+                log_dt("dtWfoll", self.logs[key])
+
+        for name in self.cameras:
+            key = f"read_camera_{name}_dt_s"
+            if key in self.logs:
+                log_dt(f"dtR{name}", self.logs[key])
+
     def disconnect(self):
         if not self.is_connected:
             raise RobotDeviceNotConnectedError(
-                "KochRobot is not connected. You need to run `robot.connect()` before disconnecting."
+                "KochRobot is not connected. You need to run `self.connect()` before disconnecting."
             )
 
         for name in self.follower_arms:

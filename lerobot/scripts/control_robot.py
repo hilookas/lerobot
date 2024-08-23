@@ -111,13 +111,14 @@ from lerobot.common.utils.utils import get_safe_torch_device, init_hydra_config,
 from lerobot.scripts.eval import get_pretrained_policy_path
 from lerobot.scripts.push_dataset_to_hub import push_meta_data_to_hub, push_videos_to_hub, save_meta_data
 
+import torchvision.transforms.functional
+
 ########################################################################################
 # Utilities
 ########################################################################################
 
-
 def save_image(img_tensor, key, frame_index, episode_index, videos_dir):
-    img = Image.fromarray(img_tensor.numpy())
+    img = torchvision.transforms.functional.to_pil_image(img_tensor)
     path = videos_dir / f"{key}_episode_{episode_index:06d}" / f"frame_{frame_index:06d}.png"
     path.parent.mkdir(parents=True, exist_ok=True)
     img.save(str(path), quality=100)
@@ -151,25 +152,8 @@ def log_control_info(robot, dt_s, episode_index=None, frame_index=None, fps=None
 
     # total step time displayed in milliseconds and its frequency
     log_dt("dt", dt_s)
-
-    for name in robot.leader_arms:
-        key = f"read_leader_{name}_pos_dt_s"
-        if key in robot.logs:
-            log_dt("dtRlead", robot.logs[key])
-
-    for name in robot.follower_arms:
-        key = f"write_follower_{name}_goal_pos_dt_s"
-        if key in robot.logs:
-            log_dt("dtRfoll", robot.logs[key])
-
-        key = f"read_follower_{name}_pos_dt_s"
-        if key in robot.logs:
-            log_dt("dtWfoll", robot.logs[key])
-
-    for name in robot.cameras:
-        key = f"read_camera_{name}_dt_s"
-        if key in robot.logs:
-            log_dt(f"dtR{name}", robot.logs[key])
+    
+    robot.log_control_info(log_dt)
 
     info_str = " ".join(log_items)
     if fps is not None:
@@ -218,7 +202,7 @@ def record_dataset(
     fps: int | None = None,
     root="data",
     repo_id="lerobot/debug",
-    warmup_time_s=2,
+    warmup_time_s=0,
     episode_time_s=10,
     reset_time_s=5,
     num_episodes=50,
@@ -227,6 +211,8 @@ def record_dataset(
     push_to_hub=True,
     num_image_writers=8,
     force_override=False,
+    say_out = True,
+    enable_keyboard = True
 ):
     # TODO(rcadene): Add option to record logs
 
@@ -255,24 +241,17 @@ def record_dataset(
     else:
         episode_index = 0
 
-    is_headless = get_is_headless()
-
     # Execute a few seconds without recording data, to give times
     # to the robot devices to connect and start synchronizing.
     timestamp = 0
     start_time = time.perf_counter()
-    is_warmup_print = False
-    while timestamp < warmup_time_s:
-        if not is_warmup_print:
-            logging.info("Warming up (no data recording)")
+    if warmup_time_s > 0:
+        logging.info("Warming up (no data recording)")
+        if say_out:
             os.system('say "Warmup" &')
-            is_warmup_print = True
-
+    while timestamp < warmup_time_s:
         now = time.perf_counter()
-        observation, action = robot.teleop_step(record_data=True)
-
-        if not is_headless:
-            image_keys = [key for key in observation if "image" in key]
+        observation, action, done = robot.teleop_step(record_data=True)
 
         dt_s = time.perf_counter() - now
         busy_wait(1 / fps - dt_s)
@@ -290,9 +269,11 @@ def record_dataset(
     stop_recording = False
 
     # Only import pynput if not in a headless environment
-    if is_headless:
+    if get_is_headless():
         logging.info("Headless environment detected. Keyboard input will not be available.")
-    else:
+        enable_keyboard = False
+    
+    if enable_keyboard:
         from pynput import keyboard
 
         def on_press(key):
@@ -323,14 +304,19 @@ def record_dataset(
         # Start recording all episodes
         while episode_index < num_episodes:
             logging.info(f"Recording episode {episode_index}")
-            os.system(f'say "Recording episode {episode_index}" &')
+            if say_out:
+                os.system(f'say "Recording episode {episode_index}" &')
             ep_dict = {}
             frame_index = 0
             timestamp = 0
             start_time = time.perf_counter()
-            while timestamp < episode_time_s:
+            while timestamp < episode_time_s or episode_time_s < 0:
                 now = time.perf_counter()
-                observation, action = robot.teleop_step(record_data=True)
+                observation, action, done = robot.teleop_step(record_data=True)
+                
+                if done:
+                    exit_early = True
+                    print("done!")
 
                 image_keys = [key for key in observation if "image" in key]
                 not_image_keys = [key for key in observation if "image" not in key]
@@ -369,7 +355,8 @@ def record_dataset(
             if not stop_recording:
                 # Start resetting env while the executor are finishing
                 logging.info("Reset the environment")
-                os.system('say "Reset the environment" &')
+                if say_out:
+                    os.system('say "Reset the environment" &')
 
             timestamp = 0
             start_time = time.perf_counter()
@@ -415,14 +402,19 @@ def record_dataset(
             is_last_episode = stop_recording or (episode_index == (num_episodes - 1))
 
             # Wait if necessary
-            with tqdm.tqdm(total=reset_time_s, desc="Waiting") as pbar:
-                while timestamp < reset_time_s and not is_last_episode:
-                    time.sleep(1)
-                    timestamp = time.perf_counter() - start_time
-                    pbar.update(1)
-                    if exit_early:
-                        exit_early = False
-                        break
+            if not is_last_episode:
+                if reset_time_s >= 0:
+                    with tqdm.tqdm(total=reset_time_s, desc="Waiting") as pbar:
+                        while timestamp < reset_time_s:
+                            time.sleep(1)
+                            timestamp = time.perf_counter() - start_time
+                            pbar.update(1)
+                            if exit_early:
+                                exit_early = False
+                                break
+                else:
+                    assert hasattr(robot, "wait_for_reset")
+                    robot.wait_for_reset()
 
             # Skip updating episode index which forces re-recording episode
             if rerecord_episode:
@@ -433,8 +425,9 @@ def record_dataset(
 
             if is_last_episode:
                 logging.info("Done recording")
-                os.system('say "Done recording"')
-                if not is_headless:
+                if say_out:
+                    os.system('say "Done recording" &')
+                if enable_keyboard:
                     listener.stop()
 
                 logging.info("Waiting for threads writing the images on disk to terminate...")
@@ -447,7 +440,8 @@ def record_dataset(
     num_episodes = episode_index
 
     logging.info("Encoding videos")
-    os.system('say "Encoding videos" &')
+    if say_out:
+        os.system('say "Encoding videos" &')
     # Use ffmpeg to convert frames stored as png into mp4 videos
     for episode_index in tqdm.tqdm(range(num_episodes)):
         for key in image_keys:
@@ -491,11 +485,13 @@ def record_dataset(
     )
     if run_compute_stats:
         logging.info("Computing dataset statistics")
-        os.system('say "Computing dataset statistics" &')
+        if say_out:
+            os.system('say "Computing dataset statistics" &')
         stats = compute_stats(lerobot_dataset)
         lerobot_dataset.stats = stats
     else:
         logging.info("Skipping computation of the dataset statistrics")
+        stats = {}
 
     hf_dataset = hf_dataset.with_format(None)  # to remove transforms that cant be saved
     hf_dataset.save_to_disk(str(local_dir / "train"))
@@ -511,7 +507,8 @@ def record_dataset(
         create_branch(repo_id, repo_type="dataset", branch=CODEBASE_VERSION)
 
     logging.info("Exiting")
-    os.system('say "Exiting" &')
+    if say_out:
+        os.system('say "Exiting" &')
 
     return lerobot_dataset
 
@@ -529,9 +526,6 @@ def replay_episode(robot: Robot, episode: int, fps: int | None = None, root="dat
 
     if not robot.is_connected:
         robot.connect()
-
-    logging.info("Replaying episode")
-    os.system('say "Replaying episode"')
 
     for idx in range(from_idx, to_idx):
         now = time.perf_counter()
@@ -677,6 +671,16 @@ if __name__ == "__main__":
         type=int,
         default=0,
         help="By default, data recording is resumed. When set to 1, delete the local directory and start data recording from scratch.",
+    )
+    parser_record.add_argument(
+        "--disable-sayout",
+        action='store_false', dest='say_out',
+        help="Whether use `say` command to speak out current status or not.",
+    )
+    parser_record.add_argument(
+        "--disable-keyboard",
+        action='store_false', dest='enable_keyboard',
+        help="Enable keyboard control",
     )
 
     parser_replay = subparsers.add_parser("replay_episode", parents=[base_parser])

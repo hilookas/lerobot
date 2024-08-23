@@ -84,7 +84,7 @@ def test_robot(tmpdir, request):
     robot.teleop_step()
 
     # Test data recorded during teleop are well formated
-    observation, action = robot.teleop_step(record_data=True)
+    observation, action, done = robot.teleop_step(record_data=True)
     # State
     assert "observation.state" in observation
     assert isinstance(observation["observation.state"], torch.Tensor)

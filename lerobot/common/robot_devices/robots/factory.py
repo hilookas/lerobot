@@ -40,6 +40,14 @@ def make_robot(name):
                 "phone": OpenCVCamera(1, fps=30, width=640, height=480),
             },
         )
+    elif name == "astra":
+        from astra_controller.astra_controller import AstraController
+
+        from lerobot.common.robot_devices.robots.astra import AstraRobot
+
+        robot = AstraRobot(
+            astra_controller=AstraController()
+        )
     else:
         raise ValueError(f"Robot '{name}' not found.")
 
