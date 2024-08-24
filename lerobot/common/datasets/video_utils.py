@@ -25,6 +25,19 @@ import pyarrow as pa
 import torch
 import torchvision
 from datasets.features.features import register_feature
+import numpy
+
+import fractions
+import PIL.Image
+import av
+import av.container
+import av.stream
+import av.video.frame
+import queue
+import threading
+
+logging.getLogger('libav').setLevel(logging.ERROR)
+logging.getLogger().setLevel(5)
 
 
 def load_from_videos(
@@ -162,53 +175,91 @@ def decode_video_frames_torchvision(
     return closest_frames
 
 
-def encode_video_frames(
-    imgs_dir: Path,
-    video_path: Path,
-    fps: int,
+def get_video_encoder(
+    video_path: Path, 
+    fps: int = 30, 
+    width: int = 1280, 
+    height: int = 720,
     vcodec: str = "libsvtav1",
     pix_fmt: str = "yuv420p",
     g: int | None = 2,
     crf: int | None = 30,
-    fast_decode: int = 0,
-    log_level: str | None = "error",
-    overwrite: bool = False,
-) -> None:
-    """More info on ffmpeg arguments tuning on `benchmark/video/README.md`"""
-    video_path = Path(video_path)
-    video_path.parent.mkdir(parents=True, exist_ok=True)
+):
+    q = queue.Queue()
+    
+    def thread():
+        # ffmpeg -f image2 -r 30 -i imgs_dir/frame_%06d.png -vcodec libsvtav1 -pix_fmt yuv420p -g 2 -crf 30 -loglevel error -y imgs_dir.mp4
+        video_path.parent.mkdir(parents=True, exist_ok=True)
 
-    ffmpeg_args = OrderedDict(
-        [
-            ("-f", "image2"),
-            ("-r", str(fps)),
-            ("-i", str(imgs_dir / "frame_%06d.png")),
-            ("-vcodec", vcodec),
-            ("-pix_fmt", pix_fmt),
-        ]
-    )
+        container: av.container.OutputContainer = av.open(file=str(video_path), mode="w")
 
-    if g is not None:
-        ffmpeg_args["-g"] = str(g)
+        stream: av.stream.Stream = container.add_stream(vcodec, rate=fps, options={
+            "g": str(g), # GOP will not work with libsvtav1
+            "crf": str(crf), 
+        })
+        stream.pix_fmt = pix_fmt
 
-    if crf is not None:
-        ffmpeg_args["-crf"] = str(crf)
+        stream.width = width
+        stream.height = height
 
-    if fast_decode:
-        key = "-svtav1-params" if vcodec == "libsvtav1" else "-tune"
-        value = f"fast-decode={fast_decode}" if vcodec == "libsvtav1" else "fastdecode"
-        ffmpeg_args[key] = value
+        VIDEO_PTIME = 1 / fps
+        VIDEO_CLOCK_RATE = 90000
 
-    if log_level is not None:
-        ffmpeg_args["-loglevel"] = str(log_level)
+        timestamp = 0
 
-    ffmpeg_args = [item for pair in ffmpeg_args.items() for item in pair]
-    if overwrite:
-        ffmpeg_args.append("-y")
+        while True:
+            image = q.get()
+            if image is None:
+                break
+            # print(timestamp)
 
-    ffmpeg_cmd = ["ffmpeg"] + ffmpeg_args + [str(video_path)]
-    # redirect stdin to subprocess.DEVNULL to prevent reading random keyboard inputs from terminal
-    subprocess.run(ffmpeg_cmd, check=True, stdin=subprocess.DEVNULL)
+            frame = av.video.VideoFrame.from_image(image)
+            
+            frame.pts = timestamp
+            frame.time_base = fractions.Fraction(1, VIDEO_CLOCK_RATE)
+            
+            timestamp += int(VIDEO_PTIME * VIDEO_CLOCK_RATE)
+
+            for packet in stream.encode(frame):
+                container.mux(packet)
+
+            q.task_done()
+            
+        # Stop
+        for packet in stream.encode(None):
+            container.mux(packet)
+
+        container.close()
+        container = None
+        
+        q.task_done()
+    
+    threading.Thread(target=thread, args=(), daemon=True).start()
+
+    # usage: q.put(image)
+
+    return q
+
+
+def save_images_to_video(
+    imgs_array: numpy.array, 
+    video_path: Path, 
+    fps: int = 30, 
+    width: int = 1280, 
+    height: int = 720,
+    vcodec: str = "libsvtav1",
+    pix_fmt: str = "yuv420p",
+    g: int | None = 2,
+    crf: int | None = 30,
+):
+    q = get_video_encoder(video_path, fps, width, height, vcodec, pix_fmt, g, crf)
+
+    for img_array in imgs_array:
+        img = PIL.Image.fromarray(img_array)
+        q.put(img)
+        
+    q.put(None)
+    q.join()
 
 
 @dataclass

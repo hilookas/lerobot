@@ -64,6 +64,7 @@ def get_stats_einops_patterns(dataset, num_workers=0):
     return stats_patterns
 
 
+@torch.no_grad
 def compute_stats(dataset, batch_size=32, num_workers=16, max_num_samples=None):
     """Compute mean/std and min/max statistics of all data keys in a LeRobotDataset."""
     if max_num_samples is None:
@@ -106,17 +107,18 @@ def compute_stats(dataset, batch_size=32, num_workers=16, max_num_samples=None):
         if first_batch is None:
             first_batch = deepcopy(batch)
         for key, pattern in stats_patterns.items():
-            batch[key] = batch[key].float()
+            batch_key = batch[key].float()
+            del batch[key]
             # Numerically stable update step for mean computation.
-            batch_mean = einops.reduce(batch[key], pattern, "mean")
+            batch_mean = einops.reduce(batch_key, pattern, "mean")
             # Hint: to update the mean we need x̄ₙ = (Nₙ₋₁x̄ₙ₋₁ + Bₙxₙ) / Nₙ, where the subscript represents
             # the update step, N is the running item count, B is this batch size, x̄ is the running mean,
             # and x is the current batch mean. Some rearrangement is then required to avoid risking
             # numerical overflow. Another hint: Nₙ₋₁ = Nₙ - Bₙ. Rearrangement yields
             # x̄ₙ = x̄ₙ₋₁ + Bₙ * (xₙ - x̄ₙ₋₁) / Nₙ
             mean[key] = mean[key] + this_batch_size * (batch_mean - mean[key]) / running_item_count
-            max[key] = torch.maximum(max[key], einops.reduce(batch[key], pattern, "max"))
-            min[key] = torch.minimum(min[key], einops.reduce(batch[key], pattern, "min"))
+            max[key] = torch.maximum(max[key], einops.reduce(batch_key, pattern, "max"))
+            min[key] = torch.minimum(min[key], einops.reduce(batch_key, pattern, "min"))
 
         if i == ceil(max_num_samples / batch_size) - 1:
             break

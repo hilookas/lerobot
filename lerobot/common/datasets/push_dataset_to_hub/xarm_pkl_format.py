@@ -16,7 +16,6 @@
 """Process pickle files formatted like in: https://github.com/fyhMer/fowm"""
 
 import pickle
-import shutil
 from pathlib import Path
 
 import einops
@@ -28,14 +27,12 @@ from PIL import Image as PILImage
 from lerobot.common.datasets.lerobot_dataset import CODEBASE_VERSION
 from lerobot.common.datasets.push_dataset_to_hub.utils import (
     concatenate_episodes,
-    get_default_encoding,
-    save_images_concurrently,
 )
 from lerobot.common.datasets.utils import (
     calculate_episode_data_index,
     hf_transform_to_torch,
 )
-from lerobot.common.datasets.video_utils import VideoFrame, encode_video_frames
+from lerobot.common.datasets.video_utils import VideoFrame, save_images_to_video
 
 
 def check_format(raw_dir):
@@ -109,17 +106,10 @@ def load_from_raw(
         imgs_array = [x.numpy() for x in image]
         img_key = "observation.image"
         if video:
-            # save png images in temporary directory
-            tmp_imgs_dir = videos_dir / "tmp_images"
-            save_images_concurrently(imgs_array, tmp_imgs_dir)
-
             # encode images to a mp4 video
             fname = f"{img_key}_episode_{ep_idx:06d}.mp4"
             video_path = videos_dir / fname
-            encode_video_frames(tmp_imgs_dir, video_path, fps, **(encoding or {}))
-
-            # clean temporary images directory
-            shutil.rmtree(tmp_imgs_dir)
+            save_images_to_video(imgs_array, video_path, fps, imgs_array.shape[2], imgs_array.shape[1], **(encoding or {}))
 
             # store the reference to the video frame
             ep_dict[img_key] = [{"path": f"videos/{fname}", "timestamp": i / fps} for i in range(num_frames)]
@@ -195,6 +185,6 @@ def from_raw_to_lerobot_format(
         "video": video,
     }
     if video:
-        info["encoding"] = get_default_encoding()
+        info["encoding"] = {'vcodec': 'libsvtav1', 'pix_fmt': 'yuv420p', 'crf': 30}
 
     return hf_dataset, episode_data_index, info
