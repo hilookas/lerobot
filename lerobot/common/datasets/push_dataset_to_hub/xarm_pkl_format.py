@@ -109,7 +109,7 @@ def load_from_raw(
             # encode images to a mp4 video
             fname = f"{img_key}_episode_{ep_idx:06d}.mp4"
             video_path = videos_dir / fname
-            save_images_to_video(imgs_array, video_path, fps, imgs_array.shape[2], imgs_array.shape[1], **(encoding or {}))
+            save_images_to_video(imgs_array, video_path, fps, imgs_array[0].shape[1], imgs_array[0].shape[0], **(encoding or {}))
 
             # store the reference to the video frame
             ep_dict[img_key] = [{"path": f"videos/{fname}", "timestamp": i / fps} for i in range(num_frames)]
