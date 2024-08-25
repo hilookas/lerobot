@@ -14,9 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
-import subprocess
+import time
 import warnings
-from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, ClassVar
@@ -28,7 +27,6 @@ from datasets.features.features import register_feature
 import numpy
 
 import fractions
-import PIL.Image
 import av
 import av.container
 import av.stream
@@ -182,21 +180,27 @@ def get_video_encoder(
     height: int = 720,
     vcodec: str = "libsvtav1",
     pix_fmt: str = "yuv420p",
-    g: int | None = 2,
-    crf: int | None = 30,
+    options: dict[str, str] | None = None,
+    nice: int = 0,
 ):
     q = queue.Queue()
     
     def thread():
+        nonlocal options
+
         # ffmpeg -f image2 -r 30 -i imgs_dir/frame_%06d.png -vcodec libsvtav1 -pix_fmt yuv420p -g 2 -crf 30 -loglevel error -y imgs_dir.mp4
         video_path.parent.mkdir(parents=True, exist_ok=True)
 
         container: av.container.OutputContainer = av.open(file=str(video_path), mode="w")
-
-        stream: av.stream.Stream = container.add_stream(vcodec, rate=fps, options={
-            "g": str(g), # GOP will not work with libsvtav1
-            "crf": str(crf), 
-        })
+        
+        if options is None:
+            options = {
+                # "g": str(2), # GOP will not work with libsvtav1
+                "crf": str(30),
+                # "preset": str(10),
+            }
+        
+        stream: av.stream.Stream = container.add_stream(vcodec, rate=fps, options=options)
         stream.pix_fmt = pix_fmt
 
         stream.width = width
@@ -208,12 +212,14 @@ def get_video_encoder(
         timestamp = 0
 
         while True:
+            if nice:
+                time.sleep(nice)
             image = q.get()
             if image is None:
                 break
             # print(timestamp)
 
-            frame = av.video.VideoFrame.from_image(image)
+            frame = av.video.VideoFrame.from_ndarray(image)
             
             frame.pts = timestamp
             frame.time_base = fractions.Fraction(1, VIDEO_CLOCK_RATE)
@@ -249,14 +255,13 @@ def save_images_to_video(
     height: int = 720,
     vcodec: str = "libsvtav1",
     pix_fmt: str = "yuv420p",
-    g: int | None = 2,
-    crf: int | None = 30,
+    options: dict[str, str] | None = None,
+    nice: int = 0,
 ):
-    q = get_video_encoder(video_path, fps, width, height, vcodec, pix_fmt, g, crf)
+    q = get_video_encoder(video_path, fps, width, height, vcodec, pix_fmt, options, nice)
 
     for img_array in imgs_array:
-        img = PIL.Image.fromarray(img_array)
-        q.put(img)
+        q.put(img_array)
         
     q.put(None)
     q.join()

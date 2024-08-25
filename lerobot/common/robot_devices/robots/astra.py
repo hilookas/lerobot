@@ -1,11 +1,7 @@
-import pickle
-import time
 from dataclasses import dataclass, field, replace
-from pathlib import Path
 
 import numpy as np
 import torch
-import torchvision.transforms.functional
 
 from astra_controller.astra_controller import AstraController
 
@@ -140,9 +136,7 @@ class AstraRobot:
         assert record_data, "Please use Astra Web Teleop"
 
         # Prepare to assign the positions of the leader to the follower
-        now = time.perf_counter()
-        action_arm_l, action_gripper_l, action_arm_r, action_gripper_r, action_base, action_eef_l, action_eef_r = self.astra_controller.read_leader_present_position()
-        self.logs[f"read_leader_pos_dt_s"] = time.perf_counter() - now
+        action, action_arm_l, action_gripper_l, action_arm_r, action_gripper_r, action_base, action_eef_l, action_eef_r = self.astra_controller.read_leader_present_position()
         
         # Leader-follower process will be automatically handle in astra controller.
         # Reason for that is we want to deliver image from device camera to the operator as soon as possible.
@@ -152,6 +146,7 @@ class AstraRobot:
         obs_dict = self.capture_observation()
 
         action_dict = {}
+        action_dict["action"] = torch.from_numpy(np.array(action))
         action_dict["action.arm_l"] = torch.from_numpy(np.array(action_arm_l))
         action_dict["action.gripper_l"] = torch.from_numpy(np.array(action_gripper_l))
         action_dict["action.arm_r"] = torch.from_numpy(np.array(action_arm_r))
@@ -171,26 +166,25 @@ class AstraRobot:
 
         # TODO(rcadene): Add velocity and other info
         # Read follower position
-        now = time.perf_counter()
-        state_arm_l, state_gripper_l, state_arm_r, state_gripper_r, state_base, state_odom = self.astra_controller.read_present_position()
-        self.logs[f"read_follower_pos_dt_s"] = time.perf_counter() - now
+        state, state_arm_l, state_gripper_l, state_arm_r, state_gripper_r, state_base, state_eef_l, state_eef_r, state_odom = self.astra_controller.read_present_position()
 
         # Capture images from cameras
-        now = time.perf_counter()
         images = self.astra_controller.read_cameras()
-        self.logs[f"read_camera_dt_s"] = time.perf_counter() - now
 
         # Populate output dictionnaries and format to pytorch
         obs_dict = {}
+        obs_dict["observation.state"] = torch.from_numpy(np.array(state))
         obs_dict["observation.state.arm_l"] = torch.from_numpy(np.array(state_arm_l))
         obs_dict["observation.state.gripper_l"] = torch.from_numpy(np.array(state_gripper_l))
         obs_dict["observation.state.arm_r"] = torch.from_numpy(np.array(state_arm_r))
         obs_dict["observation.state.gripper_r"] = torch.from_numpy(np.array(state_gripper_r))
         obs_dict["observation.state.base"] = torch.from_numpy(np.array(state_base))
+        obs_dict["observation.state.eef_l"] = torch.from_numpy(np.array(state_eef_l))
+        obs_dict["observation.state.eef_r"] = torch.from_numpy(np.array(state_eef_r))
         obs_dict["observation.state.odom"] = torch.from_numpy(np.array(state_odom))
         # Convert to pytorch format: channel first and float32 in [0,1]
         for name in images:
-            obs_dict[f"observation.images.{name}"] = torchvision.transforms.functional.pil_to_tensor(images[name]) # shape (3, 480, 640)
+            obs_dict[f"observation.images.{name}"] = torch.from_numpy(images[name]).permute((2, 0, 1)) # HWC to CHW
 
         return obs_dict
 
@@ -201,29 +195,10 @@ class AstraRobot:
                 "AstraRobot is not connected. You need to run `robot.connect()`."
             )
 
-        from_idx = 0
-        to_idx = len(self.astra_controller.motor_names)
-        follower_goal_pos = action[from_idx:to_idx].numpy()
-        from_idx = to_idx
-
-        self.astra_controller.write_goal_position(follower_goal_pos.astype(np.int32))
+        self.astra_controller.write_goal_position(action.tolist())
 
     def log_control_info(self, log_dt):
-        key = f"read_leader_pos_dt_s"
-        if key in self.logs:
-            log_dt("dtRlead", self.logs[key])
-
-        key = f"write_follower_goal_pos_dt_s"
-        if key in self.logs:
-            log_dt("dtRfoll", self.logs[key])
-
-        key = f"read_follower_pos_dt_s"
-        if key in self.logs:
-            log_dt("dtWfoll", self.logs[key])
-
-        key = f"read_camera_dt_s"
-        if key in self.logs:
-            log_dt(f"dtRcam", self.logs[key])
+        pass
 
     def disconnect(self):
         if not self.is_connected:

@@ -65,13 +65,13 @@ def get_stats_einops_patterns(dataset, num_workers=0):
 
 
 @torch.no_grad
-def compute_stats(dataset, batch_size=32, num_workers=16, max_num_samples=None):
+def compute_stats(dataset, batch_size=32, num_workers=0, max_num_samples=None):
     """Compute mean/std and min/max statistics of all data keys in a LeRobotDataset."""
     if max_num_samples is None:
         max_num_samples = len(dataset)
 
     # for more info on why we need to set the same number of workers, see `load_from_videos`
-    stats_patterns = get_stats_einops_patterns(dataset, num_workers)
+    stats_patterns = get_stats_einops_patterns(dataset)
 
     # mean and std will be computed incrementally while max and min will track the running value.
     mean, std, max, min = {}, {}, {}, {}
