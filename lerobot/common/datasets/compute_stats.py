@@ -22,6 +22,7 @@ import tqdm
 from datasets import Image
 
 from lerobot.common.datasets.video_utils import VideoFrame
+import torch.utils.data
 
 
 def get_stats_einops_patterns(dataset, num_workers=0):
