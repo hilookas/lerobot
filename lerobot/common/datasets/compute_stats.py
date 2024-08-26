@@ -72,7 +72,7 @@ def compute_stats(dataset, batch_size=32, num_workers=0, max_num_samples=None):
         max_num_samples = len(dataset)
 
     # for more info on why we need to set the same number of workers, see `load_from_videos`
-    stats_patterns = get_stats_einops_patterns(dataset)
+    stats_patterns = get_stats_einops_patterns(dataset, num_workers)
 
     # mean and std will be computed incrementally while max and min will track the running value.
     mean, std, max, min = {}, {}, {}, {}

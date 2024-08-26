@@ -1,6 +1,6 @@
 # @package _global_
 
-# Use `act_astra_real.yaml` to train on real-world datasets collected on Alexander astra's robots.
+# Use `act_astra_real.yaml` to train on real-world datasets collected on real robots.
 # Compared to `act.yaml`, it contains 2 cameras (i.e. laptop, phone) instead of 1 camera (i.e. top).
 # Also, `training.eval_freq` is set to -1. This config is used to evaluate checkpoints at a certain frequency of training steps.
 # When it is set to -1, it deactivates evaluation. This is because real-world evaluation is done through our `control_robot.py` script.
@@ -14,20 +14,29 @@
 # ```
 
 seed: 1000
-dataset_repo_id: lerobot/astra_pick_place_lego
+dataset_repo_id: lookas/astra_pick_box
 
 override_dataset_stats:
-  observation.images.laptop:
+  observation.images.head:
     # stats from imagenet, since we use a pretrained vision model
     mean: [[[0.485]], [[0.456]], [[0.406]]]  # (c,1,1)
     std: [[[0.229]], [[0.224]], [[0.225]]]  # (c,1,1)
-  observation.images.phone:
+  observation.images.wrist_left:
+    # stats from imagenet, since we use a pretrained vision model
+    mean: [[[0.485]], [[0.456]], [[0.406]]]  # (c,1,1)
+    std: [[[0.229]], [[0.224]], [[0.225]]]  # (c,1,1)
+  observation.images.wrist_right:
     # stats from imagenet, since we use a pretrained vision model
     mean: [[[0.485]], [[0.456]], [[0.406]]]  # (c,1,1)
     std: [[[0.229]], [[0.224]], [[0.225]]]  # (c,1,1)
 
 training:
-  offline_steps: 80000
+  image_resize: [640, 360]
+  
+  # Number of workers for the offline training dataloader.
+  num_workers: 6
+
+  offline_steps: 100000
   online_steps: 0
   eval_freq: -1
   save_freq: 10000
@@ -59,16 +68,18 @@ policy:
 
   input_shapes:
     # TODO(rcadene, alexander-soare): add variables for height and width from the dataset/env?
-    observation.images.laptop: [3, 480, 640]
-    observation.images.phone: [3, 480, 640]
+    observation.images.head: [3, 360, 640]
+    observation.images.wrist_left: [3, 360, 640]
+    observation.images.wrist_right: [3, 360, 640]
     observation.state: ["${env.state_dim}"]
   output_shapes:
     action: ["${env.action_dim}"]
 
   # Normalization / Unnormalization
   input_normalization_modes:
-    observation.images.laptop: mean_std
-    observation.images.phone: mean_std
+    observation.images.head: mean_std
+    observation.images.wrist_left: mean_std
+    observation.images.wrist_right: mean_std
     observation.state: mean_std
   output_normalization_modes:
     action: mean_std
@@ -100,3 +111,6 @@ policy:
   # Training and loss computation.
   dropout: 0.1
   kl_weight: 10.0
+
+wandb:
+  enable: true

@@ -71,8 +71,10 @@ def make_dataset(cfg, split: str = "train") -> LeRobotDataset | MultiLeRobotData
                 )
 
     resolve_delta_timestamps(cfg)
+    
+    from torchvision.transforms import v2
 
-    image_transforms = None
+    image_transforms = v2.Identity()
     if cfg.training.image_transforms.enable:
         cfg_tf = cfg.training.image_transforms
         image_transforms = get_image_transforms(
@@ -89,6 +91,13 @@ def make_dataset(cfg, split: str = "train") -> LeRobotDataset | MultiLeRobotData
             max_num_transforms=cfg_tf.max_num_transforms,
             random_order=cfg_tf.random_order,
         )
+    
+    if cfg.training.image_resize:
+        print(cfg.training.image_resize)
+        image_transforms = v2.Compose([
+            v2.Resize(cfg.training.image_resize),
+            image_transforms
+        ])
 
     if isinstance(cfg.dataset_repo_id, str):
         dataset = LeRobotDataset(
