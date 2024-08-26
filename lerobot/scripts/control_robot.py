@@ -491,7 +491,7 @@ def record_dataset(
         logging.info("Computing dataset statistics")
         if say_out:
             os.system('say "Computing dataset statistics" &')
-        stats = compute_stats(lerobot_dataset)
+        stats = compute_stats(lerobot_dataset, max_num_samples=320)
         lerobot_dataset.stats = stats
     else:
         logging.info("Skipping computation of the dataset statistrics")
