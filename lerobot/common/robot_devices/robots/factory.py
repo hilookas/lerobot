@@ -48,6 +48,26 @@ def make_robot(name):
         robot = AstraRobot(
             astra_controller=AstraController()
         )
+    elif name == "astra_joint":
+        from astra_controller.astra_controller import AstraController
+
+        from lerobot.common.robot_devices.robots.astra import AstraRobot
+
+        robot = AstraRobot(
+            astra_controller=AstraController(
+                space="joint"
+            )
+        )
+    elif name == "astra_cart":
+        from astra_controller.astra_controller import AstraController
+
+        from lerobot.common.robot_devices.robots.astra import AstraRobot
+
+        robot = AstraRobot(
+            astra_controller=AstraController(
+                space="cartesian"
+            )
+        )
     else:
         raise ValueError(f"Robot '{name}' not found.")
 
