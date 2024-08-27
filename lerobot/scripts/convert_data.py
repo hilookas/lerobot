@@ -60,9 +60,6 @@ from lerobot.common.datasets.utils import (
 )
 from lerobot.common.datasets.video_utils import VideoFrame, save_images_to_video
 
-import IPython
-e = IPython.embed
-
 
 def convert_data(
     raw_repo_id: str,
