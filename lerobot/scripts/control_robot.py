@@ -102,7 +102,7 @@ from lerobot.common.datasets.lerobot_dataset import CODEBASE_VERSION, LeRobotDat
 from lerobot.common.datasets.push_dataset_to_hub.aloha_hdf5_format import to_hf_dataset
 from lerobot.common.datasets.push_dataset_to_hub.utils import concatenate_episodes
 from lerobot.common.datasets.utils import calculate_episode_data_index
-from lerobot.common.datasets.video_utils import get_video_encoder
+from lerobot.common.datasets.video_utils import get_video_encoder, transcode_video
 from lerobot.common.policies.factory import make_policy
 from lerobot.common.robot_devices.robots.factory import make_robot
 from lerobot.common.robot_devices.robots.utils import Robot
@@ -329,14 +329,13 @@ def record_dataset(
             if encoder_q is None:
                 encoder_q = {}
                 for key in image_keys:
+                    tmp_fname = f"{key}_episode_{episode_index:06d}.tmp.mp4"
+                    tmp_video_path = local_dir / "videos" / tmp_fname
                     fname = f"{key}_episode_{episode_index:06d}.mp4"
                     video_path = local_dir / "videos" / fname
-                    if video_path.exists():
-                        video_path.unlink()
-                    encoder_q[key] = get_video_encoder(video_path, fps, observation[key].shape[2], observation[key].shape[1], options={
-                        "crf": str(30),
-                        "preset": str(12),
-                    })
+                    if tmp_video_path.exists():
+                        tmp_video_path.unlink()
+                    encoder_q[key] = get_video_encoder(tmp_video_path, fps, observation[key].shape[2], observation[key].shape[1], vcodec="png", pix_fmt="rgb24", options={})
             
             for key in image_keys:
                 encoder_q[key].put(observation[key].permute((1, 2, 0)).numpy()) # CHW to HWC
@@ -458,6 +457,24 @@ def record_dataset(
             break
 
     num_episodes = episode_index
+    
+    logging.info("Encoding videos")
+    if say_out:
+        os.system('say "Encoding videos" &')
+    # Use ffmpeg to convert frames stored as png into mp4 videos
+    for episode_index in tqdm.tqdm(range(num_episodes)):
+        for key in image_keys:
+            tmp_fname = f"{key}_episode_{episode_index:06d}.tmp.mp4"
+            tmp_video_path = local_dir / "videos" / tmp_fname
+            fname = f"{key}_episode_{episode_index:06d}.mp4"
+            video_path = local_dir / "videos" / fname
+            if video_path.exists():
+                # Skip if video is already encoded. Could be the case when resuming data recording.
+                continue
+            # note: `encode_video_frames` is a blocking call. Making it asynchronous shouldn't speedup encoding,
+            # since video encoding with ffmpeg is already using multithreading.
+            transcode_video(tmp_video_path, video_path, overwrite=True)
+            tmp_video_path.unlink()
 
     logging.info("Concatenating episodes")
     ep_dicts = []
@@ -478,7 +495,7 @@ def record_dataset(
         "video": video,
     }
     if video:
-        info["encoding"] = {'vcodec': 'libsvtav1', 'pix_fmt': 'yuv420p', 'crf': 30}
+        info["encoding"] = {'vcodec': 'libsvtav1', 'pix_fmt': 'yuv420p', 'g': 2, 'crf': 30}
 
     lerobot_dataset = LeRobotDataset.from_preloaded(
         repo_id=repo_id,

@@ -14,8 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
+import subprocess
 import time
 import warnings
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, ClassVar
@@ -136,10 +138,10 @@ def decode_video_frames_torchvision(
             break
 
     if backend == "pyav":
-        reader.container.close()
-        
         for stream in reader.container.streams:
             stream.close()
+
+        reader.container.close()
 
     reader = None
 
@@ -176,6 +178,65 @@ def decode_video_frames_torchvision(
     return closest_frames
 
 
+
+# deprecated, use get_video_encoder instead
+def transcode_video(
+    input_video_path: Path,
+    video_path: Path,
+    vcodec: str = "libsvtav1",
+    pix_fmt: str = "yuv420p",
+    g: int | None = 2,
+    crf: int | None = 30,
+    fast_decode: int = 0,
+    filter = None,
+    log_level: str | None = "error",
+    overwrite: bool = False,
+) -> None:
+    """More info on ffmpeg arguments tuning on `benchmark/video/README.md`"""
+    if filter is None:
+        filter = []
+    video_path = Path(video_path)
+    video_path.parent.mkdir(parents=True, exist_ok=True)
+
+    ffmpeg_args = OrderedDict(
+        [
+            ("-i", str(input_video_path)),
+            ("-vcodec", vcodec),
+            ("-pix_fmt", pix_fmt),
+        ]
+    )
+
+    if g is not None:
+        ffmpeg_args["-g"] = str(g)
+
+    if crf is not None:
+        ffmpeg_args["-crf"] = str(crf)
+
+    if fast_decode:
+        key = "-svtav1-params" if vcodec == "libsvtav1" else "-tune"
+        value = f"fast-decode={fast_decode}" if vcodec == "libsvtav1" else "fastdecode"
+        ffmpeg_args[key] = value
+        
+        
+
+    if log_level is not None:
+        ffmpeg_args["-loglevel"] = str(log_level)
+
+    ffmpeg_args = [item for pair in ffmpeg_args.items() for item in pair]
+    if overwrite:
+        ffmpeg_args.append("-y")
+
+    ffmpeg_cmd = ["ffmpeg"] + ffmpeg_args + (filter or []) + [str(video_path)]
+    # redirect stdin to subprocess.DEVNULL to prevent reading random keyboard inputs from terminal
+    subprocess.run(ffmpeg_cmd, check=True, stdin=subprocess.DEVNULL)
+
+    if not video_path.exists():
+        raise OSError(
+            f"Video encoding did not work. File not found: {video_path}. "
+            f"Try running the command manually to debug: `{''.join(ffmpeg_cmd)}`"
+        )
+
+
 def get_video_encoder(
     video_path: Path, 
     fps: int = 30, 
@@ -198,9 +259,9 @@ def get_video_encoder(
         
         if options is None:
             options = {
-                # "g": str(2), # GOP will not work with libsvtav1
+                "g": str(2),
                 "crf": str(30),
-                # "preset": str(10),
+                "preset": str(10),
             }
         
         stream: av.stream.Stream = container.add_stream(vcodec, rate=fps, options=options)
@@ -238,9 +299,9 @@ def get_video_encoder(
         for packet in stream.encode(None):
             container.mux(packet)
 
-        container.close()
         for stream in container.streams:
             stream.close()
+        container.close()
         container = None
         
         q.task_done()

@@ -185,6 +185,6 @@ def from_raw_to_lerobot_format(
         "video": video,
     }
     if video:
-        info["encoding"] = {'vcodec': 'libsvtav1', 'pix_fmt': 'yuv420p', 'crf': 30}
+        info["encoding"] = {'vcodec': 'libsvtav1', 'pix_fmt': 'yuv420p', 'g': 2, 'crf': 30}
 
     return hf_dataset, episode_data_index, info
