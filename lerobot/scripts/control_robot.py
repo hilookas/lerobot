@@ -382,6 +382,10 @@ def record_dataset(
         num_frames = frame_index
 
         for key in image_keys:
+            fname = f"{key}_episode_{episode_index:06d}.mp4"
+            video_path = local_dir / "videos" / fname
+            if video_path.exists():
+                video_path.unlink()
             # Store the reference to the video frame, even tho the videos are not yet encoded
             ep_dict[key] = []
             for i in range(num_frames):
