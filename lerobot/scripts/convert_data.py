@@ -94,12 +94,12 @@ def convert_data(
                 stacklevel=1,
             )
 
-        # Check we don't override an existing `local_dir` by mistake
-        if local_dir.exists():
-            if force_override:
-                shutil.rmtree(local_dir)
-            elif not resume:
-                raise ValueError(f"`local_dir` already exists ({local_dir}). Use `--force-override 1`.")
+        # # Check we don't override an existing `local_dir` by mistake
+        # if local_dir.exists():
+        #     if force_override:
+        #         shutil.rmtree(local_dir)
+        #     elif not resume:
+        #         raise ValueError(f"`local_dir` already exists ({local_dir}). Use `--force-override 1`.")
 
         meta_data_dir = local_dir / "meta_data"
         videos_dir = local_dir / "videos"
@@ -110,7 +110,7 @@ def convert_data(
     
     # converting
     
-    raw_dataset = LeRobotDataset(raw_repo_id)
+    raw_dataset = LeRobotDataset(raw_repo_id, root)
     for episode_index in tqdm.tqdm(range(raw_dataset.num_episodes)):
         for key in raw_dataset.video_frame_keys:
             tmp_fname = f"{key}_episode_{episode_index:06d}.mp4"
@@ -173,7 +173,7 @@ def convert_data(
         info=info,
         videos_dir=videos_dir,
     )
-    stats = compute_stats(lerobot_dataset, batch_size, num_workers)
+    stats = compute_stats(lerobot_dataset, batch_size, num_workers, max_num_samples=320)
 
     if local_dir:
         hf_dataset = hf_dataset.with_format(None)  # to remove transforms that cant be saved
