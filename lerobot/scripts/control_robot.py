@@ -599,9 +599,8 @@ def run_policy(robot: Robot, policy: torch.nn.Module, hydra_cfg: DictConfig, run
             for name in observation:
                 observation[name] = observation[name].unsqueeze(0)
 
-            if device.type == "mps":
-                for name in observation:
-                    observation[name] = observation[name].to(device)
+            for name in observation:
+                observation[name] = observation[name].to(device, torch.float32)
 
             action = policy.select_action(observation)
 
