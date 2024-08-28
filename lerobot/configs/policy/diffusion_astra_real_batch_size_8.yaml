@@ -25,7 +25,7 @@ training:
   image_resize: [640, 360]
   
   # Number of workers for the offline training dataloader.
-  num_workers: 8
+  num_workers: 12
 
   offline_steps: 200000
   online_steps: 0
