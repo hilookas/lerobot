@@ -5,7 +5,7 @@
 #       https://github.com/huggingface/lerobot/pull/134 for more details.
 
 seed: 100000
-dataset_repo_id: lookas/astra_pick_box
+dataset_repo_id: lookas/astra_pick_box_converted
 
 override_dataset_stats:
   observation.images.head:
@@ -25,7 +25,7 @@ training:
   image_resize: [640, 360]
   
   # Number of workers for the offline training dataloader.
-  num_workers: 6
+  num_workers: 8
 
   offline_steps: 200000
   online_steps: 0
@@ -33,7 +33,7 @@ training:
   save_freq: 25000
   save_checkpoint: true
 
-  batch_size: 64
+  batch_size: 8
   grad_clip_norm: 10
   lr: 1.0e-4
   lr_scheduler: cosine

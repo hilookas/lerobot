@@ -14,7 +14,7 @@
 # ```
 
 seed: 1000
-dataset_repo_id: lookas/astra_pick_box
+dataset_repo_id: lookas/astra_pick_box_converted
 
 override_dataset_stats:
   observation.images.head:
