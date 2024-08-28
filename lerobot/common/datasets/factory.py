@@ -91,13 +91,6 @@ def make_dataset(cfg, split: str = "train") -> LeRobotDataset | MultiLeRobotData
             max_num_transforms=cfg_tf.max_num_transforms,
             random_order=cfg_tf.random_order,
         )
-    
-    if cfg.training.image_resize:
-        print(cfg.training.image_resize)
-        image_transforms = v2.Compose([
-            v2.Resize(cfg.training.image_resize),
-            image_transforms
-        ])
 
     if isinstance(cfg.dataset_repo_id, str):
         dataset = LeRobotDataset(
