@@ -338,7 +338,7 @@ def record_dataset(
                     encoder_q[key] = get_video_encoder(tmp_video_path, fps, observation[key].shape[2], observation[key].shape[1], vcodec="png", pix_fmt="rgb24", options={})
             
             for key in image_keys:
-                encoder_q[key].put(observation[key].permute((1, 2, 0)).numpy()) # CHW to HWC
+                encoder_q[key].put(observation[key].numpy())
 
             for key in not_image_keys:
                 if key not in ep_dict:
@@ -608,6 +608,13 @@ def run_policy(robot: Robot, policy: torch.nn.Module, hydra_cfg: DictConfig, run
 
             for name in observation:
                 observation[name] = observation[name].to(device, torch.float32)
+
+            for name in observation:
+                if "image" in name:
+                    # Convert to pytorch format: channel first and float32 in [0,1]
+                    observation[name] = (observation[name].type(torch.float32) / 255).permute(2, 0, 1).contiguous()
+                
+            # IPython.embed()
 
             action = policy.select_action(observation)
 

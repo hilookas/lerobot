@@ -500,11 +500,7 @@ class KochRobot:
         obs_dict = {}
         obs_dict["observation.state"] = torch.from_numpy(state)
         for name in self.cameras:
-            # Convert to pytorch format: channel first and float32 in [0,1]
-            img = torch.from_numpy(images[name])
-            img = img.type(torch.float32) / 255
-            img = img.permute(2, 0, 1).contiguous()
-            obs_dict[f"observation.images.{name}"] = img
+            obs_dict[f"observation.images.{name}"] = torch.from_numpy(images[name])
         return obs_dict
 
     def send_action(self, action: torch.Tensor):

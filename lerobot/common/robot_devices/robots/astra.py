@@ -181,7 +181,7 @@ class AstraRobot:
 
             # Convert to pytorch format: channel first and float32 in [0,1]
             for name in images:
-                obs_dict[f"observation.images.{name}"] = torch.from_numpy(cv2.resize(images[name], (640, 360))).permute((2, 0, 1)) # HWC to CHW
+                obs_dict[f"observation.images.{name}"] = torch.from_numpy(cv2.resize(images[name], (640, 360)))
         elif self.astra_controller.space == "both":
             # TODO(rcadene): Add velocity and other info
             # Read follower position
@@ -203,7 +203,7 @@ class AstraRobot:
 
             # Convert to pytorch format: channel first and float32 in [0,1]
             for name in images:
-                obs_dict[f"observation.images.{name}"] = torch.from_numpy(images[name]).permute((2, 0, 1)) # HWC to CHW
+                obs_dict[f"observation.images.{name}"] = torch.from_numpy(images[name])
         else:
             raise Exception("Don't add joint/cart suffix when teleoprating")
 
