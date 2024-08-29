@@ -586,6 +586,9 @@ def run_policy(robot: Robot, policy: torch.nn.Module, hydra_cfg: DictConfig, run
 
     if not robot.is_connected:
         robot.connect()
+    
+    assert hasattr(robot, "wait_for_reset")
+    robot.wait_for_reset()
 
     start_time = time.perf_counter()
     while True:
