@@ -335,7 +335,7 @@ def record_dataset(
                     video_path = local_dir / "videos" / fname
                     if tmp_video_path.exists():
                         tmp_video_path.unlink()
-                    encoder_q[key] = get_video_encoder(tmp_video_path, fps, observation[key].shape[2], observation[key].shape[1], vcodec="png", pix_fmt="rgb24", options={})
+                    encoder_q[key] = get_video_encoder(tmp_video_path, fps, observation[key].shape[1], observation[key].shape[0], vcodec="png", pix_fmt="rgb24", options={})
             
             for key in image_keys:
                 encoder_q[key].put(observation[key].numpy())
@@ -467,6 +467,7 @@ def record_dataset(
         os.system('say "Encoding videos" &')
     # Use ffmpeg to convert frames stored as png into mp4 videos
     for episode_index in tqdm.tqdm(range(num_episodes)):
+        image_keys = ["observation.images.head", "observation.images.wrist_left", "observation.images.wrist_right"]
         for key in image_keys:
             tmp_fname = f"{key}_episode_{episode_index:06d}.tmp.mp4"
             tmp_video_path = local_dir / "videos" / tmp_fname
