@@ -120,7 +120,9 @@ def convert_data(
             if video_path.exists():
                 # Skip if video is already encoded. Could be the case when resuming data recording.
                 continue
-            transcode_video(tmp_video_path, video_path, filter=["-filter:v", "scale=640:-1"], overwrite=True)
+            Path(video_path).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(tmp_video_path, video_path)
+            # transcode_video(tmp_video_path, video_path, filter=["-filter:v", "scale=640:-1"], overwrite=True)
     
     modified_rows = []
     for row in raw_dataset.hf_dataset:
