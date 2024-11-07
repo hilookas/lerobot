@@ -613,7 +613,7 @@ def run_policy(robot: Robot, policy: torch.nn.Module, hydra_cfg: DictConfig, run
             for name in observation:
                 if "image" in name:
                     # Convert to pytorch format: channel first and float32 in [0,1]
-                    observation[name] = (observation[name].type(torch.float32) / 255).permute(2, 0, 1).contiguous()
+                    observation[name] = (observation[name].type(torch.float32) / 255).permute(0, 3, 1, 2).contiguous()
                 
             # IPython.embed()
 
