@@ -218,10 +218,10 @@ def record(
             root=cfg.root,
             local_files_only=cfg.local_files_only,
         )
-        if len(robot.cameras) > 0:
+        if len(robot.camera_features) > 0:
             dataset.start_image_writer(
                 num_processes=cfg.num_image_writer_processes,
-                num_threads=cfg.num_image_writer_threads_per_camera * len(robot.cameras),
+                num_threads=cfg.num_image_writer_threads_per_camera * len(robot.camera_features),
             )
         sanity_check_dataset_robot_compatibility(dataset, robot, cfg.fps, cfg.video)
     else:
@@ -234,7 +234,7 @@ def record(
             robot=robot,
             use_videos=cfg.video,
             image_writer_processes=cfg.num_image_writer_processes,
-            image_writer_threads=cfg.num_image_writer_threads_per_camera * len(robot.cameras),
+            image_writer_threads=cfg.num_image_writer_threads_per_camera * len(robot.camera_features),
         )
 
     # Load pretrained policy
@@ -261,6 +261,16 @@ def record(
         if recorded_episodes >= cfg.num_episodes:
             break
 
+        # Execute a few seconds without recording to give time to manually reset the environment
+        # Current code logic doesn't allow to teleoperate during this time.
+        # TODO(rcadene): add an option to enable teleoperation during reset
+        # Skip reset for the last episode to be recorded
+        if not events["stop_recording"] and (
+            (recorded_episodes < cfg.num_episodes - 1) or events["rerecord_episode"]
+        ):
+            log_say("Reset the environment", cfg.play_sounds)
+            reset_environment(robot, events, cfg.reset_time_s)
+
         log_say(f"Recording episode {dataset.num_episodes}", cfg.play_sounds)
         record_episode(
             dataset=dataset,
@@ -273,16 +283,6 @@ def record(
             use_amp=cfg.use_amp,
             fps=cfg.fps,
         )
-
-        # Execute a few seconds without recording to give time to manually reset the environment
-        # Current code logic doesn't allow to teleoperate during this time.
-        # TODO(rcadene): add an option to enable teleoperation during reset
-        # Skip reset for the last episode to be recorded
-        if not events["stop_recording"] and (
-            (recorded_episodes < cfg.num_episodes - 1) or events["rerecord_episode"]
-        ):
-            log_say("Reset the environment", cfg.play_sounds)
-            reset_environment(robot, events, cfg.reset_time_s)
 
         if events["rerecord_episode"]:
             log_say("Re-record episode", cfg.play_sounds)

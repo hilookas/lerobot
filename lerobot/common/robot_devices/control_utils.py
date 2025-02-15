@@ -45,24 +45,27 @@ def log_control_info(robot: Robot, dt_s, episode_index=None, frame_index=None, f
 
     # TODO(aliberts): move robot-specific logs logic in robot.print_logs()
     if not robot.robot_type.startswith("stretch"):
-        for name in robot.leader_arms:
-            key = f"read_leader_{name}_pos_dt_s"
-            if key in robot.logs:
-                log_dt("dtRlead", robot.logs[key])
+        if hasattr(robot, "leader_arms"):
+            for name in robot.leader_arms:
+                key = f"read_leader_{name}_pos_dt_s"
+                if key in robot.logs:
+                    log_dt("dtRlead", robot.logs[key])
 
-        for name in robot.follower_arms:
-            key = f"write_follower_{name}_goal_pos_dt_s"
-            if key in robot.logs:
-                log_dt("dtWfoll", robot.logs[key])
+        if hasattr(robot, "follower_arms"):
+            for name in robot.follower_arms:
+                key = f"write_follower_{name}_goal_pos_dt_s"
+                if key in robot.logs:
+                    log_dt("dtWfoll", robot.logs[key])
 
-            key = f"read_follower_{name}_pos_dt_s"
-            if key in robot.logs:
-                log_dt("dtRfoll", robot.logs[key])
+                key = f"read_follower_{name}_pos_dt_s"
+                if key in robot.logs:
+                    log_dt("dtRfoll", robot.logs[key])
 
-        for name in robot.cameras:
-            key = f"read_camera_{name}_dt_s"
-            if key in robot.logs:
-                log_dt(f"dtR{name}", robot.logs[key])
+        if hasattr(robot, "cameras"):
+            for name in robot.cameras:
+                key = f"read_camera_{name}_dt_s"
+                if key in robot.logs:
+                    log_dt(f"dtR{name}", robot.logs[key])
 
     info_str = " ".join(log_items)
     logging.info(info_str)
@@ -218,7 +221,7 @@ def control_loop(
     if events is None:
         events = {"exit_early": False}
 
-    if control_time_s is None:
+    if control_time_s is None or control_time_s < 0:
         control_time_s = float("inf")
 
     if teleoperate and policy is not None:
@@ -237,8 +240,18 @@ def control_loop(
 
         if teleoperate:
             observation, action = robot.teleop_step(record_data=True)
+            if "done" in observation:
+                if observation["done"]:
+                    print("Done")
+                    break
+                del observation["done"]
         else:
             observation = robot.capture_observation()
+            if "done" in observation:
+                if observation["done"]:
+                    print("Done")
+                    break
+                del observation["done"]
 
             if policy is not None:
                 pred_action = predict_action(observation, policy, device, use_amp)
@@ -275,6 +288,11 @@ def reset_environment(robot, events, reset_time_s):
     # TODO(alibets): allow for teleop during reset
     if has_method(robot, "teleop_safety_stop"):
         robot.teleop_safety_stop()
+
+    # Wait if necessary
+    if not reset_time_s >= 0:
+        if hasattr(robot, "wait_for_reset"):
+            robot.wait_for_reset()
 
     timestamp = 0
     start_vencod_t = time.perf_counter()

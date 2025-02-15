@@ -294,7 +294,7 @@ class LeRobotDatasetMetadata:
         if robot is not None:
             features = get_features_from_robot(robot, use_videos)
             robot_type = robot.robot_type
-            if not all(cam.fps == fps for cam in robot.cameras.values()):
+            if hasattr(robot, "cameras") and not all(cam.fps == fps for cam in robot.cameras.values()):
                 logging.warning(
                     f"Some cameras in your {robot.robot_type} robot don't have an fps matching the fps of your dataset."
                     "In this case, frames from lower fps cameras will be repeated to fill in the blanks."

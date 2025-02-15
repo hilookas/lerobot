@@ -1,6 +1,6 @@
 import abc
 from dataclasses import dataclass, field
-from typing import Sequence
+from typing import Sequence, Literal
 
 import draccus
 
@@ -512,5 +512,23 @@ class StretchRobotConfig(RobotConfig):
             ),
         }
     )
+
+    mock: bool = False
+
+
+@RobotConfig.register_subclass("astra")
+@dataclass
+class AstraRobotConfig(RobotConfig):
+    # `max_relative_target` limits the magnitude of the relative positional target vector for safety purposes.
+    # Set this to a positive scalar to have the same value for all motors, or a list that is the same length as
+    # the number of motors in your follower arms.
+    max_relative_target: int | None = None
+
+    cameras: dict[str, CameraConfig] = field(
+        default_factory=lambda: {
+        }
+    )
+    
+    space: Literal["both", "joint", "cart"] = "both"
 
     mock: bool = False

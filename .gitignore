@@ -5,7 +5,7 @@ wandb
 
 # Data
 data
-outputs
+outputs*
 
 # Apple
 .DS_Store

@@ -9,6 +9,7 @@ from lerobot.common.robot_devices.robots.configs import (
     RobotConfig,
     So100RobotConfig,
     StretchRobotConfig,
+    AstraRobotConfig,
 )
 
 
@@ -45,6 +46,18 @@ def make_robot_config(robot_type: str, **kwargs) -> RobotConfig:
         return So100RobotConfig(**kwargs)
     elif robot_type == "stretch":
         return StretchRobotConfig(**kwargs)
+    elif robot_type == "astra":
+        return AstraRobotConfig(**kwargs)
+    elif robot_type == "astra_joint":
+        return AstraRobotConfig(
+            space="joint",
+            **kwargs
+        )
+    elif robot_type == "astra_cart":
+        return AstraRobotConfig(
+            space="cart",
+            **kwargs
+        )
     else:
         raise ValueError(f"Robot type '{robot_type}' is not available.")
 
@@ -54,10 +67,16 @@ def make_robot_from_config(config: RobotConfig):
         from lerobot.common.robot_devices.robots.manipulator import ManipulatorRobot
 
         return ManipulatorRobot(config)
-    else:
+    elif config.type == "stretch":
         from lerobot.common.robot_devices.robots.stretch import StretchRobot
 
         return StretchRobot(config)
+    elif config.type == "astra":
+        from lerobot.common.robot_devices.robots.astra import AstraRobot
+
+        return AstraRobot(config)
+    else:
+        raise ValueError(f"Robot type '{config.type}' is not available.")
 
 
 def make_robot(robot_type: str, **kwargs) -> Robot:
