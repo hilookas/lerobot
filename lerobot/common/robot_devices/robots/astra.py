@@ -104,8 +104,8 @@ class AstraRobot:
 
     @property
     def motor_features(self) -> dict:
-        action_names = ["joint_l1", "joint_l2", "joint_l3", "joint_l4", "joint_l5", "joint_l6", "joint_l7r", "joint_r1", "joint_r2", "joint_r3", "joint_r4", "joint_r5", "joint_r6", "joint_r7r"]
-        state_names = ["joint_l1", "joint_l2", "joint_l3", "joint_l4", "joint_l5", "joint_l6", "joint_l7r", "joint_r1", "joint_r2", "joint_r3", "joint_r4", "joint_r5", "joint_r6", "joint_r7r"]
+        # action_names = ["joint_l1", "joint_l2", "joint_l3", "joint_l4", "joint_l5", "joint_l6", "joint_l7r", "joint_r1", "joint_r2", "joint_r3", "joint_r4", "joint_r5", "joint_r6", "joint_r7r"]
+        # state_names = ["joint_l1", "joint_l2", "joint_l3", "joint_l4", "joint_l5", "joint_l6", "joint_l7r", "joint_r1", "joint_r2", "joint_r3", "joint_r4", "joint_r5", "joint_r6", "joint_r7r"]
         return {
             # "action": {
             #     "dtype": "float32",
@@ -153,6 +153,12 @@ class AstraRobot:
                 "shape": (7,),
                 "names": list(range(7)),
             },
+
+            "action.head": {
+                "dtype": "float32",
+                "shape": (2,),
+                "names": list(range(2)),
+            },
             
             "observation.state.arm_l": {
                 "dtype": "float32",
@@ -194,6 +200,12 @@ class AstraRobot:
                 "shape": (7,),
                 "names": list(range(7)),
             },
+
+            "observation.state.head": {
+                "dtype": "float32",
+                "shape": (2,),
+                "names": list(range(2)),
+            },
         }
 
     @property
@@ -231,8 +243,8 @@ class AstraRobot:
 
         if self.astra_controller.space == "both":
             # Prepare to assign the positions of the leader to the follower
-            action_arm_l, action_gripper_l, action_arm_r, action_gripper_r, action_base, action_eef_l, action_eef_r = self.astra_controller.read_leader_present_position()
-
+            action_arm_l, action_gripper_l, action_arm_r, action_gripper_r, action_base, action_eef_l, action_eef_r, action_head = self.astra_controller.read_leader_present_position()
+    
             # Leader-follower process will be automatically handle in astra controller.
             # Reason for that is we want to deliver image from device camera to the operator as soon as possible.
             # Also, delay of arm is all over the place. Strictly do as aloha does may not be necessary.
@@ -248,6 +260,7 @@ class AstraRobot:
             action_dict["action.base"] = torch.from_numpy(np.array(action_base))
             action_dict["action.eef_l"] = torch.from_numpy(np.array(action_eef_l))
             action_dict["action.eef_r"] = torch.from_numpy(np.array(action_eef_r))
+            action_dict["action.head"] = torch.from_numpy(np.array(action_head))
             obs_dict["done"] = self.astra_controller.done
             self.astra_controller.done = False
         else:
@@ -280,7 +293,7 @@ class AstraRobot:
         elif self.astra_controller.space == "both":
             # TODO(rcadene): Add velocity and other info
             # Read follower position
-            state_arm_l, state_gripper_l, state_arm_r, state_gripper_r, state_base, state_eef_l, state_eef_r, state_odom = self.astra_controller.read_present_position()
+            state_arm_l, state_gripper_l, state_arm_r, state_gripper_r, state_base, state_eef_l, state_eef_r, state_odom, state_head = self.astra_controller.read_present_position()
 
             # Capture images from cameras
             images = self.astra_controller.read_cameras()
@@ -295,6 +308,7 @@ class AstraRobot:
             obs_dict["observation.state.eef_l"] = torch.from_numpy(np.array(state_eef_l))
             obs_dict["observation.state.eef_r"] = torch.from_numpy(np.array(state_eef_r))
             obs_dict["observation.state.odom"] = torch.from_numpy(np.array(state_odom))
+            obs_dict["observation.state.head"] = torch.from_numpy(np.array(state_head))
 
             # Convert to pytorch format: channel first and float32 in [0,1]
             for name in images:
