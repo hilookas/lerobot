@@ -73,10 +73,21 @@ class PreTrainedConfig(draccus.ChoiceRegistry, HubMixin, abc.ABC):
 
     @property
     def robot_state_feature(self) -> PolicyFeature | None:
-        for _, ft in self.input_features.items():
-            if ft.type is FeatureType.STATE:
-                return ft
-        return None
+        # for _, ft in self.input_features.items():
+        #     if ft.type is FeatureType.STATE:
+        #         return ft
+        # return None
+        
+        # lookas: astra specific
+        ft = PolicyFeature(type=FeatureType.STATE, shape=(
+            self.input_features["observation.state.arm_l"].shape[0]
+            + self.input_features["observation.state.gripper_l"].shape[0]
+            + self.input_features["observation.state.arm_r"].shape[0]
+            + self.input_features["observation.state.gripper_r"].shape[0]
+            + self.input_features["observation.state.base"].shape[0]
+            + self.input_features["observation.state.head"].shape[0]
+        ,))
+        return ft
 
     @property
     def env_state_feature(self) -> PolicyFeature | None:
@@ -91,10 +102,31 @@ class PreTrainedConfig(draccus.ChoiceRegistry, HubMixin, abc.ABC):
 
     @property
     def action_feature(self) -> PolicyFeature | None:
-        for _, ft in self.output_features.items():
-            if ft.type is FeatureType.ACTION:
-                return ft
-        return None
+        # for _, ft in self.output_features.items():
+        #     if ft.type is FeatureType.ACTION:
+        #         return ft
+        # return None
+
+        # print(self.output_features)
+        # {'action.arm_l': PolicyFeature(type=<FeatureType.ACTION: 'ACTION'>, shape=(6,)),
+        # 'action.gripper_l': PolicyFeature(type=<FeatureType.ACTION: 'ACTION'>, shape=(1,)),
+        # 'action.arm_r': PolicyFeature(type=<FeatureType.ACTION: 'ACTION'>, shape=(6,)),
+        # 'action.gripper_r': PolicyFeature(type=<FeatureType.ACTION: 'ACTION'>, shape=(1,)),
+        # 'action.base': PolicyFeature(type=<FeatureType.ACTION: 'ACTION'>, shape=(2,)),
+        # 'action.eef_l': PolicyFeature(type=<FeatureType.ACTION: 'ACTION'>, shape=(7,)),
+        # 'action.eef_r': PolicyFeature(type=<FeatureType.ACTION: 'ACTION'>, shape=(7,)),
+        # 'action.head': PolicyFeature(type=<FeatureType.ACTION: 'ACTION'>, shape=(2,))}
+        
+        # lookas: astra specific
+        ft = PolicyFeature(type=FeatureType.ACTION, shape=(
+            self.output_features["action.arm_l"].shape[0]
+            + self.output_features["action.gripper_l"].shape[0]
+            + self.output_features["action.arm_r"].shape[0]
+            + self.output_features["action.gripper_r"].shape[0]
+            + self.output_features["action.base"].shape[0]
+            + self.output_features["action.head"].shape[0]
+        ,))
+        return ft
 
     def _save_pretrained(self, save_directory: Path) -> None:
         with open(save_directory / CONFIG_NAME, "w") as f, draccus.config_type("json"):
