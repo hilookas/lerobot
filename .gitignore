@@ -4,7 +4,7 @@ tmp
 wandb
 
 # Data
-data
+data*
 outputs*
 
 # Apple
@@ -153,3 +153,5 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+*.bak

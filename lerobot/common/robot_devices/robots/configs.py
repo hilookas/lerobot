@@ -529,6 +529,42 @@ class AstraRobotConfig(RobotConfig):
         }
     )
     
-    space: Literal["both", "joint", "cart"] = "both"
+    space: None = None
+
+    mock: bool = False
+
+
+@RobotConfig.register_subclass("astra_joint")
+@dataclass
+class AstraJointRobotConfig(AstraRobotConfig):
+    # `max_relative_target` limits the magnitude of the relative positional target vector for safety purposes.
+    # Set this to a positive scalar to have the same value for all motors, or a list that is the same length as
+    # the number of motors in your follower arms.
+    max_relative_target: int | None = None
+
+    cameras: dict[str, CameraConfig] = field(
+        default_factory=lambda: {
+        }
+    )
+    
+    space: Literal["joint"] = "joint"
+
+    mock: bool = False
+
+
+@RobotConfig.register_subclass("astra_cart")
+@dataclass
+class AstraCartRobotConfig(AstraRobotConfig):
+    # `max_relative_target` limits the magnitude of the relative positional target vector for safety purposes.
+    # Set this to a positive scalar to have the same value for all motors, or a list that is the same length as
+    # the number of motors in your follower arms.
+    max_relative_target: int | None = None
+
+    cameras: dict[str, CameraConfig] = field(
+        default_factory=lambda: {
+        }
+    )
+    
+    space: Literal["cart"] = "cart"
 
     mock: bool = False

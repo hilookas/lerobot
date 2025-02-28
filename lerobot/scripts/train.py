@@ -68,11 +68,6 @@ def update_policy(
     device = get_device_from_parameters(policy)
     policy.train()
     with torch.autocast(device_type=device.type) if use_amp else nullcontext():
-        batch["action"] = torch.cat([batch["action.arm_l"], batch["action.gripper_l"].unsqueeze(-1), batch["action.arm_r"], batch["action.gripper_r"].unsqueeze(-1), batch["action.base"], batch["action.head"]], dim=-1)
-        # assert torch.all(batch["action.arm_l_is_pad"] == batch["action.gripper_l_is_pad"])
-        # assert torch.all(batch["action.arm_l_is_pad"] == batch["action.arm_r_is_pad"])
-        batch["action_is_pad"] = batch["action.arm_r_is_pad"]
-        batch["observation.state"] = torch.cat([batch["observation.state.arm_l"], batch["observation.state.gripper_l"].unsqueeze(-1), batch["observation.state.arm_r"], batch["observation.state.gripper_r"].unsqueeze(-1), batch["observation.state.base"], batch["observation.state.head"]], dim=-1)
         loss, output_dict = policy.forward(batch)
         # TODO(rcadene): policy.unnormalize_outputs(out_dict)
     grad_scaler.scale(loss).backward()

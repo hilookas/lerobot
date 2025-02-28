@@ -104,20 +104,7 @@ class AstraRobot:
 
     @property
     def motor_features(self) -> dict:
-        # action_names = ["joint_l1", "joint_l2", "joint_l3", "joint_l4", "joint_l5", "joint_l6", "joint_l7r", "joint_r1", "joint_r2", "joint_r3", "joint_r4", "joint_r5", "joint_r6", "joint_r7r"]
-        # state_names = ["joint_l1", "joint_l2", "joint_l3", "joint_l4", "joint_l5", "joint_l6", "joint_l7r", "joint_r1", "joint_r2", "joint_r3", "joint_r4", "joint_r5", "joint_r6", "joint_r7r"]
-        return {
-            # "action": {
-            #     "dtype": "float32",
-            #     "shape": (len(action_names),),
-            #     "names": action_names,
-            # },
-            # "observation.state": {
-            #     "dtype": "float32",
-            #     "shape": (len(state_names),),
-            #     "names": state_names,
-            # },
-            
+        features = {
             "action.arm_l": {
                 "dtype": "float32",
                 "shape": (6,),
@@ -207,6 +194,25 @@ class AstraRobot:
                 "names": list(range(2)),
             },
         }
+        
+        if self.astra_controller.space == "joint":
+            return {
+                "action": {
+                    "dtype": "float32",
+                    "shape": (6+1+6+1+2+2,),
+                    "names": list(range(6+1+6+1+2+2)),
+                },
+                "observation.state": {
+                    "dtype": "float32",
+                    "shape": (6+1+6+1+2+2,),
+                    "names": list(range(6+1+6+1+2+2)),
+                },
+                **features,
+            }
+        elif self.astra_controller.space == "cart":
+            raise NotImplementedError("Cartesian space is not supported for now")
+        else:
+            return features
 
     @property
     def features(self):
@@ -241,30 +247,30 @@ class AstraRobot:
 
         assert record_data, "Please use Astra Web Teleop"
 
-        if self.astra_controller.space == "both":
-            # Prepare to assign the positions of the leader to the follower
-            action_arm_l, action_gripper_l, action_arm_r, action_gripper_r, action_base, action_eef_l, action_eef_r, action_head = self.astra_controller.read_leader_present_position()
-    
-            # Leader-follower process will be automatically handle in astra controller.
-            # Reason for that is we want to deliver image from device camera to the operator as soon as possible.
-            # Also, delay of arm is all over the place. Strictly do as aloha does may not be necessary.
-            # TODO delay consideration
+        # Prepare to assign the positions of the leader to the follower
+        action, action_arm_l, action_gripper_l, action_arm_r, action_gripper_r, action_base, action_eef_l, action_eef_r, action_head = self.astra_controller.read_leader_present_position()
 
-            obs_dict = self.capture_observation()
+        # Leader-follower process will be automatically handle in astra controller.
+        # Reason for that is we want to deliver image from device camera to the operator as soon as possible.
+        # Also, delay of arm is all over the place. Strictly do as aloha does may not be necessary.
+        # TODO delay consideration
 
-            action_dict = {}
-            action_dict["action.arm_l"] = torch.from_numpy(np.array(action_arm_l))
-            action_dict["action.gripper_l"] = torch.from_numpy(np.array(action_gripper_l))
-            action_dict["action.arm_r"] = torch.from_numpy(np.array(action_arm_r))
-            action_dict["action.gripper_r"] = torch.from_numpy(np.array(action_gripper_r))
-            action_dict["action.base"] = torch.from_numpy(np.array(action_base))
-            action_dict["action.eef_l"] = torch.from_numpy(np.array(action_eef_l))
-            action_dict["action.eef_r"] = torch.from_numpy(np.array(action_eef_r))
-            action_dict["action.head"] = torch.from_numpy(np.array(action_head))
-            obs_dict["done"] = self.astra_controller.done
-            self.astra_controller.done = False
-        else:
-            raise Exception("Don't add joint/cart suffix when teleoprating")
+        obs_dict = self.capture_observation()
+
+        action_dict = {}
+        if self.astra_controller.space == 'joint' or self.astra_controller.space == 'cartesian':
+            action_dict["action"] = torch.from_numpy(np.array(action)).to(torch.float32)
+        action_dict["action.arm_l"] = torch.from_numpy(np.array(action_arm_l)).to(torch.float32)
+        action_dict["action.gripper_l"] = torch.from_numpy(np.array(action_gripper_l)).to(torch.float32)
+        action_dict["action.arm_r"] = torch.from_numpy(np.array(action_arm_r)).to(torch.float32)
+        action_dict["action.gripper_r"] = torch.from_numpy(np.array(action_gripper_r)).to(torch.float32)
+        action_dict["action.base"] = torch.from_numpy(np.array(action_base)).to(torch.float32)
+        action_dict["action.eef_l"] = torch.from_numpy(np.array(action_eef_l)).to(torch.float32)
+        action_dict["action.eef_r"] = torch.from_numpy(np.array(action_eef_r)).to(torch.float32)
+        action_dict["action.head"] = torch.from_numpy(np.array(action_head)).to(torch.float32)
+        
+        obs_dict["done"] = self.astra_controller.done
+        self.astra_controller.done = False
 
         return obs_dict, action_dict
 
@@ -275,46 +281,30 @@ class AstraRobot:
                 "AstraRobot is not connected. You need to run `robot.connect()`."
             )
 
+        # TODO(rcadene): Add velocity and other info
+        # Read follower position
+        state, state_arm_l, state_gripper_l, state_arm_r, state_gripper_r, state_base, state_eef_l, state_eef_r, state_odom, state_head = self.astra_controller.read_present_position()
+
+        # Capture images from cameras
+        images = self.astra_controller.read_cameras()
+
+        # Populate output dictionnaries and format to pytorch
+        obs_dict = {}
         if self.astra_controller.space == 'joint' or self.astra_controller.space == 'cartesian':
-            # TODO(rcadene): Add velocity and other info
-            # Read follower position
-            state = self.astra_controller.read_present_position()
+            obs_dict["observation.state"] = torch.from_numpy(np.array(state)).to(torch.float32)
+        obs_dict["observation.state.arm_l"] = torch.from_numpy(np.array(state_arm_l)).to(torch.float32)
+        obs_dict["observation.state.gripper_l"] = torch.from_numpy(np.array(state_gripper_l)).to(torch.float32)
+        obs_dict["observation.state.arm_r"] = torch.from_numpy(np.array(state_arm_r)).to(torch.float32)
+        obs_dict["observation.state.gripper_r"] = torch.from_numpy(np.array(state_gripper_r)).to(torch.float32)
+        obs_dict["observation.state.base"] = torch.from_numpy(np.array(state_base)).to(torch.float32)
+        obs_dict["observation.state.eef_l"] = torch.from_numpy(np.array(state_eef_l)).to(torch.float32)
+        obs_dict["observation.state.eef_r"] = torch.from_numpy(np.array(state_eef_r)).to(torch.float32)
+        obs_dict["observation.state.odom"] = torch.from_numpy(np.array(state_odom)).to(torch.float32)
+        obs_dict["observation.state.head"] = torch.from_numpy(np.array(state_head)).to(torch.float32)
 
-            # Capture images from cameras
-            images = self.astra_controller.read_cameras()
-
-            # Populate output dictionnaries and format to pytorch
-            obs_dict = {}
-            obs_dict["observation.state"] = torch.from_numpy(np.array(state))
-
-            # Convert to pytorch format: channel first and float32 in [0,1]
-            for name in images:
-                obs_dict[f"observation.images.{name}"] = torch.from_numpy(cv2.resize(images[name], (640, 360)))
-        elif self.astra_controller.space == "both":
-            # TODO(rcadene): Add velocity and other info
-            # Read follower position
-            state_arm_l, state_gripper_l, state_arm_r, state_gripper_r, state_base, state_eef_l, state_eef_r, state_odom, state_head = self.astra_controller.read_present_position()
-
-            # Capture images from cameras
-            images = self.astra_controller.read_cameras()
-
-            # Populate output dictionnaries and format to pytorch
-            obs_dict = {}
-            obs_dict["observation.state.arm_l"] = torch.from_numpy(np.array(state_arm_l))
-            obs_dict["observation.state.gripper_l"] = torch.from_numpy(np.array(state_gripper_l))
-            obs_dict["observation.state.arm_r"] = torch.from_numpy(np.array(state_arm_r))
-            obs_dict["observation.state.gripper_r"] = torch.from_numpy(np.array(state_gripper_r))
-            obs_dict["observation.state.base"] = torch.from_numpy(np.array(state_base))
-            obs_dict["observation.state.eef_l"] = torch.from_numpy(np.array(state_eef_l))
-            obs_dict["observation.state.eef_r"] = torch.from_numpy(np.array(state_eef_r))
-            obs_dict["observation.state.odom"] = torch.from_numpy(np.array(state_odom))
-            obs_dict["observation.state.head"] = torch.from_numpy(np.array(state_head))
-
-            # Convert to pytorch format: channel first and float32 in [0,1]
-            for name in images:
-                obs_dict[f"observation.images.{name}"] = torch.from_numpy(images[name])
-        else:
-            raise Exception("Don't add joint/cart suffix when teleoprating")
+        # Convert to pytorch format: channel first and float32 in [0,1]
+        for name in images:
+            obs_dict[f"observation.images.{name}"] = torch.from_numpy(images[name]).to(torch.float32)
 
         return obs_dict
 
