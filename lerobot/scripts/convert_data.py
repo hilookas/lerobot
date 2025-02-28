@@ -1,3 +1,4 @@
+# %%
 import torch
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 import tqdm
@@ -35,6 +36,9 @@ features = {
     **raw_dataset.features
 }
 
+# %%
+os.system(f"rm -rf ~/.cache/huggingface/lerobot/{repo_id}")
+
 # Create empty dataset or load existing saved episodes
 dataset = LeRobotDataset.create(
     repo_id,
@@ -47,6 +51,7 @@ dataset = LeRobotDataset.create(
 
 # %%
 task = raw_dataset[0]["task"]
+assert raw_dataset[-1]["task"] == task # all tasks should be same
 
 for row in tqdm.tqdm(raw_dataset):
     if row["frame_index"] == 0 and dataset.episode_buffer["size"] != 0:
@@ -71,7 +76,10 @@ for row in tqdm.tqdm(raw_dataset):
         ]),
         **{k: v for k, v in row.items() if k.startswith("observation.") or k.startswith("action.")}
     }
+    
     dataset.add_frame(frame)
+
+dataset.save_episode(task)
 
 # %%
 run_compute_stats = True
