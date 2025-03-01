@@ -268,9 +268,6 @@ class AstraRobot:
         action_dict["action.eef_l"] = torch.from_numpy(np.array(action_eef_l)).to(torch.float32)
         action_dict["action.eef_r"] = torch.from_numpy(np.array(action_eef_r)).to(torch.float32)
         action_dict["action.head"] = torch.from_numpy(np.array(action_head)).to(torch.float32)
-        
-        obs_dict["done"] = self.astra_controller.done
-        self.astra_controller.done = False
 
         return obs_dict, action_dict
 
@@ -304,7 +301,10 @@ class AstraRobot:
 
         # Convert to pytorch format: channel first and float32 in [0,1]
         for name in images:
-            obs_dict[f"observation.images.{name}"] = torch.from_numpy(images[name]).to(torch.float32)
+            obs_dict[f"observation.images.{name}"] = torch.from_numpy(images[name])
+            
+        obs_dict["done"] = self.astra_controller.done
+        self.astra_controller.done = False
 
         return obs_dict
 
@@ -316,6 +316,19 @@ class AstraRobot:
             )
 
         self.astra_controller.write_goal_position(action.tolist())
+        
+        action_dict = {}
+        action_dict["action"] = action
+        action_dict["action.arm_l"] = torch.zeros(6).to(torch.float32)
+        action_dict["action.gripper_l"] = torch.zeros(1).to(torch.float32)
+        action_dict["action.arm_r"] = torch.zeros(6).to(torch.float32)
+        action_dict["action.gripper_r"] = torch.zeros(1).to(torch.float32)
+        action_dict["action.base"] = torch.zeros(2).to(torch.float32)
+        action_dict["action.eef_l"] = torch.zeros(7).to(torch.float32)
+        action_dict["action.eef_r"] = torch.zeros(7).to(torch.float32)
+        action_dict["action.head"] = torch.zeros(2).to(torch.float32)
+        
+        return action_dict
 
     def log_control_info(self, log_dt):
         pass

@@ -291,7 +291,8 @@ def record(
             dataset.clear_episode_buffer()
             continue
 
-        dataset.save_episode(cfg.single_task)
+        # dataset.save_episode(cfg.single_task)
+        dataset.save_episode(cfg.single_task, encode_videos=False) # encode video when everything is done
         recorded_episodes += 1
 
         if events["stop_recording"]:

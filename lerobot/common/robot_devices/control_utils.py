@@ -241,24 +241,29 @@ def control_loop(
         if teleoperate:
             observation, action = robot.teleop_step(record_data=True)
             if "done" in observation:
-                if observation["done"]:
+                done = observation["done"]
+                del observation["done"]
+
+                if done:
                     print("Done")
                     break
-                del observation["done"]
         else:
             observation = robot.capture_observation()
             if "done" in observation:
-                if observation["done"]:
+                done = observation["done"]
+                del observation["done"]
+
+                if done:
                     print("Done")
                     break
-                del observation["done"]
 
             if policy is not None:
                 pred_action = predict_action(observation, policy, device, use_amp)
                 # Action can eventually be clipped using `max_relative_target`,
                 # so action actually sent is saved in the dataset.
                 action = robot.send_action(pred_action)
-                action = {"action": action}
+                if not isinstance(action, dict):
+                    action = {"action": action}
 
         if dataset is not None:
             frame = {**observation, **action}
