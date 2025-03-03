@@ -2,9 +2,10 @@
 import torch
 from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 import tqdm
+import os
 
-raw_repo_id = "lookas/astra_grab_floor_toys"
-repo_id = raw_repo_id + "_with_joint_space"
+raw_repo_id = "lookas/astra_grab_floor_toys_without_observations_actions"
+repo_id = "lookas/astra_grab_floor_toys"
 
 root = None
 local_files_only = True
@@ -50,36 +51,58 @@ dataset = LeRobotDataset.create(
 )
 
 # %%
-task = raw_dataset[0]["task"]
-assert raw_dataset[-1]["task"] == task # all tasks should be same
+def get_episode():
+    first = True
+    rows = []
 
-for row in tqdm.tqdm(raw_dataset):
-    if row["frame_index"] == 0 and dataset.episode_buffer["size"] != 0:
-        dataset.save_episode(task)
-    
-    frame = {
-        "action": torch.concatenate([
-            row["action.arm_l"],
-            row["action.gripper_l"].unsqueeze(-1),
-            row["action.arm_r"],
-            row["action.gripper_r"].unsqueeze(-1),
-            row["action.base"],
-            row["action.head"],
-        ]),
-        "observation.state": torch.concatenate([
-            row["observation.state.arm_l"],
-            row["observation.state.gripper_l"].unsqueeze(-1),
-            row["observation.state.arm_r"],
-            row["observation.state.gripper_r"].unsqueeze(-1),
-            row["observation.state.base"],
-            row["observation.state.head"],
-        ]),
-        **{k: v for k, v in row.items() if k.startswith("observation.") or k.startswith("action.")}
-    }
-    
-    dataset.add_frame(frame)
+    for row in tqdm.tqdm(raw_dataset):
+        if row["frame_index"] == 0 and not first:
+            yield rows
+            rows = []
 
-dataset.save_episode(task)
+        first = False
+        rows.append(row)
+    yield rows
+
+# %%
+for rows in get_episode():
+    task = rows[0]["task"]
+
+    rows = rows[5:] # remove empty state
+
+    for row in rows:
+        row.pop("episode_index")
+        row.pop("task")
+        row.pop("frame_index")
+        row.pop("timestamp")
+        row.pop("index")
+        row.pop("task_index")
+        
+        frame = {
+            "action": torch.concatenate([
+                row["action.arm_l"],
+                row["action.gripper_l"].unsqueeze(-1),
+                row["action.arm_r"],
+                row["action.gripper_r"].unsqueeze(-1),
+                row["action.base"],
+                row["action.head"],
+            ]),
+            "observation.state": torch.concatenate([
+                row["observation.state.arm_l"],
+                row["observation.state.gripper_l"].unsqueeze(-1),
+                row["observation.state.arm_r"],
+                row["observation.state.gripper_r"].unsqueeze(-1),
+                row["observation.state.base"],
+                row["observation.state.head"],
+            ]),
+            **row
+        }
+        
+        dataset.add_frame(frame)
+    
+    del rows
+
+    dataset.save_episode(task)
 
 # %%
 run_compute_stats = True

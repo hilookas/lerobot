@@ -4,7 +4,6 @@ from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
 import tqdm
 import os
 from lerobot.common.datasets.utils import write_json, INFO_PATH
-import matplotlib.pyplot as plt
 
 raw_repo_id = "lookas/astra_grab_floor_toys"
 repo_id = raw_repo_id + "_base_cmd_pos"
@@ -92,6 +91,8 @@ for rows in get_episode():
         row.pop("timestamp")
         row.pop("index")
         row.pop("task_index")
+        row.pop("action")
+        row.pop("observation.state")
         
         frame = {
             "action": torch.concatenate([

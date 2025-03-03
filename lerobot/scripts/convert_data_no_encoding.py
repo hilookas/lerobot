@@ -83,6 +83,8 @@ for rows in get_episode():
         row.pop("timestamp")
         row.pop("index")
         row.pop("task_index")
+        row.pop("action")
+        row.pop("observation.state")
         
         frame = {
             "action": torch.concatenate([
