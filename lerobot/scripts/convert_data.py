@@ -45,6 +45,7 @@ dataset = LeRobotDataset.create(
     repo_id,
     raw_dataset.meta.fps,
     root=root,
+    robot_type="astra_joint",
     features=features,
     use_videos=True,
     image_writer_threads=4 * 3,
@@ -77,6 +78,8 @@ for rows in get_episode():
         row.pop("timestamp")
         row.pop("index")
         row.pop("task_index")
+        row.pop("action")
+        row.pop("observation.state")
         
         frame = {
             "action": torch.concatenate([

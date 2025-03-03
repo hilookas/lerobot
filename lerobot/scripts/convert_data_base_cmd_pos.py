@@ -5,7 +5,7 @@ import tqdm
 import os
 from lerobot.common.datasets.utils import write_json, INFO_PATH
 
-raw_repo_id = "lookas/astra_grab_floor_toys"
+raw_repo_id = "lookas/astra_grab_floor_toys_extended"
 repo_id = raw_repo_id + "_base_cmd_pos"
 
 root = None
@@ -54,6 +54,7 @@ dataset = LeRobotDataset.create(
     repo_id,
     raw_dataset.meta.fps,
     root=root,
+    robot_type="astra_joint",
     features=features,
     use_videos=True,
 )

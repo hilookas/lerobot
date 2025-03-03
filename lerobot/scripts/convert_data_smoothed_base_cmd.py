@@ -7,7 +7,7 @@ from lerobot.common.datasets.utils import write_json, INFO_PATH
 import scipy.signal
 import matplotlib.pyplot as plt
 
-raw_repo_id = "lookas/astra_grab_floor_toys"
+raw_repo_id = "lookas/astra_grab_floor_toys_extended"
 repo_id = raw_repo_id + "_smoothed_base_cmd"
 
 root = None
@@ -56,6 +56,7 @@ dataset = LeRobotDataset.create(
     repo_id,
     raw_dataset.meta.fps,
     root=root,
+    robot_type="astra_joint",
     features=features,
     use_videos=True,
 )

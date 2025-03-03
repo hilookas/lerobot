@@ -54,6 +54,7 @@ dataset = LeRobotDataset.create(
     repo_id,
     raw_dataset.meta.fps,
     root=root,
+    robot_type="astra_joint",
     features=features,
     use_videos=True,
 )
