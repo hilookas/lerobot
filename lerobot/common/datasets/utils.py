@@ -294,7 +294,7 @@ def get_hf_features_from_features(features: dict) -> datasets.Features:
 
 def get_features_from_robot(robot: Robot, use_videos: bool = True) -> dict:
     camera_ft = {}
-    if robot.cameras:
+    if robot.camera_features:
         camera_ft = {
             key: {"dtype": "video" if use_videos else "image", **ft}
             for key, ft in robot.camera_features.items()
