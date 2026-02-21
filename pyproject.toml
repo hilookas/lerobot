@@ -5,8 +5,18 @@ requires-python = ">=3.10,<3.14"
 dependencies = [
     "av>=16.1.0",
     "datasets>=2.16,<3",
+    "draccus>=0.11.5",
+    "einops>=0.8.2",
+    "gymnasium>=1.2.3",
+    "imageio>=2.37.2",
+    "jsonlines>=4.0.0",
+    "pillow>=12.1.1",
     "pytest>=9.0.2",
+    "termcolor>=3.3.0",
+    "torch>=2.10.0",
+    "torchvision>=0.25.0",
     "transformers<5",
+    "wandb>=0.25.0",
 ]
 
 [tool.poetry]
