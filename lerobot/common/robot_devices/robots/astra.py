@@ -4,7 +4,24 @@ import cv2
 import numpy as np
 import torch
 
-from astra_controller.astra_controller import AstraController
+import socket
+import pickle
+
+ROBOT_SERVER_ADDR = ('127.0.0.1', 9382)  # hardcoded robot address (example)
+
+class RemoteAstraControllerClient:
+    def __init__(self):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.connect(ROBOT_SERVER_ADDR)
+
+    def call(self, method, *args, **kwargs):
+        req = {'method': method, 'args': args, 'kwargs': kwargs}
+        self.sock.sendall(pickle.dumps(req))
+        data = self.sock.recv(4096)
+        return pickle.loads(data)
+
+    def close(self):
+        self.sock.close()
 
 from lerobot.common.robot_devices.utils import RobotDeviceAlreadyConnectedError, RobotDeviceNotConnectedError
 from lerobot.common.robot_devices.robots.configs import AstraRobotConfig
@@ -20,7 +37,7 @@ class AstraRobot:
     ```python
     # Defines how to communicate with the motors of the leader and follower arms
     astra_controller = AstraController(
-        
+
     )
     robot = AstraRobot(astra_controller)
     # Connect motors buses and cameras if any (Required)
@@ -81,12 +98,11 @@ class AstraRobot:
             config = AstraRobotConfig()
         # Overwrite config arguments using kwargs
         self.config = replace(config, **kwargs)
-        
+
         self.robot_type = self.config.type
 
-        self.astra_controller: AstraController = AstraController(
-            space=self.config.space
-        )
+        # Use remote client, space is always 'joint'
+        self.astra_controller = RemoteAstraControllerClient()
         self.is_connected = False
         self.logs = {}
 
@@ -146,7 +162,7 @@ class AstraRobot:
                 "shape": (2,),
                 "names": list(range(2)),
             },
-            
+
             "observation.state.arm_l": {
                 "dtype": "float32",
                 "shape": (6,),
@@ -194,7 +210,7 @@ class AstraRobot:
                 "names": list(range(2)),
             },
         }
-        
+
         if self.astra_controller.space == "joint":
             return {
                 "action": {
@@ -230,12 +246,12 @@ class AstraRobot:
             )
 
         # Connect the arms
-        self.astra_controller.connect()
+        self.astra_controller.call('connect')
 
         self.is_connected = True
 
     def wait_for_reset(self):
-        self.astra_controller.wait_for_reset()
+        self.astra_controller.call('wait_for_reset')
 
     def teleop_step(
         self, record_data=False
@@ -248,7 +264,7 @@ class AstraRobot:
         assert record_data, "Please use Astra Web Teleop"
 
         # Prepare to assign the positions of the leader to the follower
-        action, action_arm_l, action_gripper_l, action_arm_r, action_gripper_r, action_base, action_eef_l, action_eef_r, action_head = self.astra_controller.read_leader_present_position()
+        action, action_arm_l, action_gripper_l, action_arm_r, action_gripper_r, action_base, action_eef_l, action_eef_r, action_head = self.astra_controller.call('read_leader_present_position')
 
         # Leader-follower process will be automatically handle in astra controller.
         # Reason for that is we want to deliver image from device camera to the operator as soon as possible.
@@ -280,10 +296,10 @@ class AstraRobot:
 
         # TODO(rcadene): Add velocity and other info
         # Read follower position
-        state, state_arm_l, state_gripper_l, state_arm_r, state_gripper_r, state_base, state_eef_l, state_eef_r, state_odom, state_head = self.astra_controller.read_present_position()
+        state, state_arm_l, state_gripper_l, state_arm_r, state_gripper_r, state_base, state_eef_l, state_eef_r, state_odom, state_head = self.astra_controller.call('read_present_position')
 
         # Capture images from cameras
-        images = self.astra_controller.read_cameras()
+        images = self.astra_controller.call('read_cameras')
 
         # Populate output dictionnaries and format to pytorch
         obs_dict = {}
@@ -302,9 +318,9 @@ class AstraRobot:
         # Convert to pytorch format: channel first and float32 in [0,1]
         for name in images:
             obs_dict[f"observation.images.{name}"] = torch.from_numpy(images[name])
-            
-        obs_dict["done"] = self.astra_controller.done
-        self.astra_controller.done = False
+
+        obs_dict["done"] = self.astra_controller.call('done')
+        self.astra_controller.call('set_done', False)
 
         return obs_dict
 
@@ -315,8 +331,8 @@ class AstraRobot:
                 "AstraRobot is not connected. You need to run `robot.connect()`."
             )
 
-        self.astra_controller.write_goal_position(action.tolist())
-        
+        self.astra_controller.call('write_goal_position', action.tolist())
+
         action_dict = {}
         action_dict["action"] = action
         action_dict["action.arm_l"] = torch.zeros(6).to(torch.float32)
@@ -327,7 +343,7 @@ class AstraRobot:
         action_dict["action.eef_l"] = torch.zeros(7).to(torch.float32)
         action_dict["action.eef_r"] = torch.zeros(7).to(torch.float32)
         action_dict["action.head"] = torch.zeros(2).to(torch.float32)
-        
+
         return action_dict
 
     def log_control_info(self, log_dt):
@@ -339,7 +355,7 @@ class AstraRobot:
                 "AstraRobot is not connected. You need to run `robot.connect()` before disconnecting."
             )
 
-        self.astra_controller.disconnect()
+        self.astra_controller.call('disconnect')
 
         self.is_connected = False
 
